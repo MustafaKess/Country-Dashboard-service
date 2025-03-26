@@ -13,15 +13,16 @@ For information and requirements see bellow
 (POST)
 Should include:
 
--country name
--iso code for said country 
--check if temprature is measured in Celsius or not (true/false)
--precipitation -> is it raining, showering or snowing? (t/f)
--Capital -> check if the name of the capital is shown (t/f)
--Check if coordinates are shown or not (t/f)
--Check if population is shown or not (t/f)
--Check if land area size is shown or not (t/f)
--TargetCurrencies shows all exhange rates that are shown.
+- country name
+- iso code for said country 
+- check if temprature is measured in Celsius or not (true/false)
+- precipitation -> is it raining, showering or snowing? (t/f)
+- Capital -> check if the name of the capital is shown (t/f)
+- Check if coordinates are shown or not (t/f)
+- Check if population is shown or not (t/f)
+- Check if land area size is shown or not (t/f)
+- TargetCurrencies shows all exhange rates that are shown.
+
 
 
 (GET)
@@ -45,29 +46,28 @@ Delete individual configuration identified by its ID. Should lead to deletion of
 ## Endpoint - Dashboards
 (GET)
 Should include:
--Country name
--isoCode 
--features:
-	-temprature
-	-precipipitation
-	-capital
-	-coordinates:{
-		-latitude
-		-longditude
-		}
-	-population
-	-area
-	-targetCurrencies
--last retrival (should be current time/ time of retrival)
+- Country name
+- isoCode 
+
+features:
+
+- temprature
+- precipipitation
+- capital
+- coordinates:{ latitude, longditude }
+- population
+- area
+- targetCurrencies
+- last retrival (should be current time/ time of retrival)
 
 ## Endpoint - Notification
 (POST)
 -URL will be triggered upon an event (service should be invoked)
 -Diffrent triggers:
-    REGISTER - If a new config is registred
-    CHANGE - If a config is modified
-    DELETE - If a config is deleted 
-    INVOKE - If a dashboard is retriedved (i.e, GET request on dashboard endpoint) 
+- REGISTER - If a new config is registred
+- CHANGE - If a config is modified
+- DELETE - If a config is deleted 
+- INVOKE - If a dashboard is retriedved (i.e, GET request on dashboard endpoint) 
 
 (DELETE)
 -Deletes a webhook given its id
@@ -84,7 +84,7 @@ When a webhook is triggered it shall send information as follows. For multiple w
 
 ## Endpoint- Status
 (GET)
--Should show status on all API's in use(countries_api, meteo_api, currency_api, notification_db)
--Show the number of registred webhooks
--version 
--uptime 
+- Should show status on all API's in use(countries_api, meteo_api, currency_api, notification_db)
+- Show the number of registred webhooks
+- version 
+- uptime 
