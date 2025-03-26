@@ -1,3 +1,14 @@
+# Country Dashboard Service 
+
+Final endpoints:
+
+/dashboard/v1/registrations/
+/dashboard/v1/dashboards/
+/dashboard/v1/notifications/
+/dashboard/v1/status/
+
+For information and requirements see bellow
+
 ## Endpoint: Registrations
 (POST)
 Should include:
