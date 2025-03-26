@@ -1,8 +1,19 @@
-package Country_Dashboard_Service
+package main
+
+import (
+	"Country-Dashboard-Service/constants"
+	"Country-Dashboard-Service/handlers"
+	"fmt"
+	"net/http"
+)
 
 func main() {
 	//http.HandleFunc(constants.Registrations, handlers.RegistrationHandler)
 	//http.HandleFunc(constants.Dashboards, handlers.DashboardHandler)
 	//http.HandleFunc(constants.Notifications, handlers.NotificationHandler)
-	//http.HandleFunc(constants.Status, handlers.StatusHandler)
+	http.HandleFunc(constants.Status, handlers.StatusHandler)
+
+	fmt.Println("Starting server on port", constants.Port)
+	fmt.Println("Link to the server status page: http://localhost:8080/dashboard/v1/status")
+	http.ListenAndServe(constants.Port, nil)
 }

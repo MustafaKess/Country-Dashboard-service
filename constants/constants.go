@@ -2,9 +2,10 @@ package constants
 
 const (
 	Port    = ":8080"
-	BaseAPI = "dashboard/v1"
+	BaseAPI = "/dashboard/v1"
 
 	//Local endpoints
+
 	Registrations = BaseAPI + "/registrations/"
 	Dashboards    = BaseAPI + "/dashboards/"
 	Notifications = BaseAPI + "/notifications/"
