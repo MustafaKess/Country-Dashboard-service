@@ -2,7 +2,7 @@ package main
 
 import (
 	"Country-Dashboard-Service/constants"
-	"Country-Dashboard-Service/handlers"
+	"Country-Dashboard-Service/internal/handlers"
 	"fmt"
 	"net/http"
 )
