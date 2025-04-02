@@ -1,40 +1,50 @@
 package storage
 
 import (
-	"Country-Dashboard-Service/internal/models"
-	"cloud.google.com/go/firestore" // Firestore-specific support
-	"context"                       // State handling across API boundaries; part of native GoLang API
-	"encoding/json"
-	"errors"
+	"cloud.google.com/go/firestore"   // Firestore-specific support
+	"context"                         // State handling across API boundaries; part of native GoLang API
 	firebase "firebase.google.com/go" // Generic firebase support
 	"fmt"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"io"
 	"log"
-	"net/http"
-	"os"
-	"time"
 )
 
 /*
-This server shows an example of how to interact with Firebase directly, including
-storing and retrieval of content.
+Set up of the firebase client
 */
 
 // Firebase context and client used by Firestore functions throughout the program.
-var ctx context.Context
-var client *firestore.Client
 
-// Collection name in Firestore
-const collection = "students"
-
-// Message counter to produce some variation in content
-var ct = 0
+var (
+	client *firestore.Client
+	ctx    context.Context
+)
 
 /*
-Reads a string from the body in plain-text and sends it to Firestore to be registered as a document.
+InitFirestore initializes the Firestore client
 */
+func InitFirestore() {
+	ctx = context.Background()
+	serviceAccount := option.WithCredentialsFile("country-dashboard-prog2005.json")
+	app, err := firebase.NewApp(ctx, nil, serviceAccount)
+	if err != nil {
+		log.Fatalf("Could not initilize the Firebase application: %v", err)
+	}
+
+	var err1 error
+	client, err1 = app.Firestore(ctx)
+	if err1 != nil {
+		log.Fatalf("Could not initialize the Firestore client: %v", err1)
+	}
+
+	fmt.Println("Firestore client initialized")
+
+}
+
+// OLD CODE BROUGHT FROM FIRESTORE DEMO
+
+/*
+
 func addDocument(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Received " + r.Method + " request.")
@@ -67,14 +77,14 @@ func addDocument(w http.ResponseWriter, r *http.Request) {
 
 		id, _, err2 := client.Collection(collection).Add(ctx, c)
 
-		/* Alternatively, you can directly encode data structures:
+		 Alternatively, you can directly encode data structures:
 		Example:
 			id, _, err2 := client.Collection(collection).Add(ctx, map[string]interface{}{
 					"content": string(content),           // this is self-defined and embeds the content passed by the client
 					"ct":      ct,                        // a self-defined counter (as an example for an additional field if useful)
 					"time":    firestore.ServerTimestamp, // exemplifying Firestore features
 				})
-		*/
+
 
 		ct++
 		if err2 != nil {
@@ -91,9 +101,7 @@ func addDocument(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-Lists all the documents in the collection (see constant above) to the user.
-*/
+
 func displayDocument(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Received " + r.Method + " request.")
@@ -158,9 +166,7 @@ func displayDocument(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-Handler for all message-related operations
-*/
+
 func handleMessage(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
@@ -224,9 +230,10 @@ func main() {
 	}
 }
 
-/*
+
   Advanced Tasks:
    - Introduce update functionality via PUT and/or PATCH
    - Introduce delete functionality
    - Adapt addDocument and displayDocument function to support custom JSON schema
+
 */
