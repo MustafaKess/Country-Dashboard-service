@@ -4,6 +4,7 @@ import (
 	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/handlers"
 	"Country-Dashboard-Service/internal/storage"
+
 	"fmt"
 	"net/http"
 )
@@ -13,7 +14,7 @@ func main() {
 	// InitFirestore initializes the Firestore client
 	storage.InitFirestore()
 
-	//http.HandleFunc(constants.Registrations, handlers.RegistrationHandler)
+	http.HandleFunc(constants.Registrations, handlers.RegistrationsHandler)
 	//http.HandleFunc(constants.Dashboards, handlers.DashboardHandler)
 	//http.HandleFunc(constants.Notifications, handlers.NotificationHandler)
 	http.HandleFunc(constants.Status, handlers.StatusHandler)

@@ -19,7 +19,7 @@ import (
 
 // StatusHandler handles requests for the service status.
 func StatusHandler(w http.ResponseWriter, r *http.Request) {
-	restCountriesAPIStatus, err := checkAPIStatus(constants.RestCountriesAPI + "/all/name/norway")
+	restCountriesAPIStatus, err := checkAPIStatus(constants.RestCountriesAPI + "/name/norway")
 	if err != nil {
 		restCountriesAPIStatus = "Error"
 	}

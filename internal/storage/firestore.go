@@ -30,7 +30,7 @@ InitFirestore initializes the Firestore client
 */
 func InitFirestore() {
 	ctx = context.Background()
-	serviceAccount := option.WithCredentialsFile("country-dashboard-prog2005.json")
+	serviceAccount := option.WithCredentialsFile(".env/firebaseKey.json")
 	app, err := firebase.NewApp(ctx, nil, serviceAccount)
 	if err != nil {
 		log.Fatalf("Could not initilize the Firebase application: %v", err)
