@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -29,8 +30,14 @@ var (
 InitFirestore initializes the Firestore client
 */
 func InitFirestore() {
+
 	ctx = context.Background()
-	serviceAccount := option.WithCredentialsFile(".env/firebaseKey.json")
+
+	serviceAccountPath := os.Getenv("FIREBASE_CREDENTIALS_PATH")
+	if serviceAccountPath == "" {
+		log.Fatal("FIREBASE_CREDENTIALS_PATH environment variable is not set")
+	}
+	serviceAccount := option.WithCredentialsFile(serviceAccountPath)
 	app, err := firebase.NewApp(ctx, nil, serviceAccount)
 	if err != nil {
 		log.Fatalf("Could not initilize the Firebase application: %v", err)
@@ -58,6 +65,29 @@ func GetDoc(collection string) ([]map[string]interface{}, error) {
 	}
 	return docs, nil
 }
+
+/*
+func GetPaginatedDocs(collection string, pageSize int, lastDoc *firestore.DocumentSnapshot) ([]map[string]interface{}, *firestore.DocumentSnapshot, error) {
+	query := client.Collection(collection).Limit(pageSize)
+	if lastDoc != nil {
+		query = query.StartAfter(lastDoc)
+	}
+	iter := query.Documents(ctx)
+
+	var docs []map[string]interface{}
+	var lastFetchedDoc *firestore.DocumentSnapshot
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			return docs, lastFetchedDoc, err
+		}
+		docs = append(docs, doc.Data())
+		lastFetchedDoc = doc
+	}
+	return docs, lastFetchedDoc, nil
+}
+
+*/
 
 func UpdateRegistration(collection, docID string, data map[string]interface{}) error {
 	_, err := client.Collection(collection).Doc(docID).Set(ctx, data)
@@ -110,6 +140,55 @@ func AddDoc(w http.ResponseWriter, r *http.Request, collection string) {
 			return
 		}
 	}
+}
+
+/**
+ * UpdateDoc updates a document in the Firestore database.
+ * Is going to be used for PUT requests.
+ */
+
+func UpdateDoc(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/messages/"):]
+
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Reading payload failed", http.StatusInternalServerError)
+		return
+	}
+
+	var updatedData map[string]interface{}
+	err = json.Unmarshal(content, &updatedData)
+	if err != nil {
+		http.Error(w, "Error unmarshalling payload", http.StatusInternalServerError)
+		return
+	}
+
+	_, err = client.Collection("configurations").Doc(id).Set(ctx, updatedData, firestore.MergeAll)
+	if err != nil {
+		http.Error(w, "Failed to update document", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Document updated successfully"))
+}
+
+/**
+ * DeleteDoc deletes a document in the Firestore database.
+ * Is going to be used for DELETE requests.
+ */
+
+func DeleteDoc(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/messages/"):]
+
+	_, err := client.Collection("configurations").Doc(id).Delete(ctx)
+	if err != nil {
+		http.Error(w, "Failed to delete document", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Document deleted successfully"))
 }
 
 // OLD CODE BROUGHT FROM FIRESTORE DEMO
