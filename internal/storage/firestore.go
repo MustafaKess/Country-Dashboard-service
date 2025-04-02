@@ -1,12 +1,17 @@
 package storage
 
 import (
-	"cloud.google.com/go/firestore"   // Firestore-specific support
-	"context"                         // State handling across API boundaries; part of native GoLang API
-	firebase "firebase.google.com/go" // Generic firebase support
+	"Country-Dashboard-Service/internal/models"
+	"cloud.google.com/go/firestore"
+	"context"
+	"encoding/json"
+	firebase "firebase.google.com/go"
 	"fmt"
 	"google.golang.org/api/option"
+	"io"
 	"log"
+	"net/http"
+	"time"
 )
 
 /*
@@ -39,6 +44,72 @@ func InitFirestore() {
 
 	fmt.Println("Firestore client initialized")
 
+}
+
+func GetDoc(collection string) ([]map[string]interface{}, error) {
+	iter := client.Collection(collection).Documents(ctx)
+	var docs []map[string]interface{}
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			break
+		}
+		docs = append(docs, doc.Data())
+	}
+	return docs, nil
+}
+
+func UpdateRegistration(collection, docID string, data map[string]interface{}) error {
+	_, err := client.Collection(collection).Doc(docID).Set(ctx, data)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DisplayConfig(w http.ResponseWriter, r *http.Request) {
+	configurations, err := GetDoc("configurations")
+	if err != nil {
+		http.Error(w, "Could not get configurations", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(configurations); err != nil {
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
+}
+
+func AddDoc(w http.ResponseWriter, r *http.Request, collection string) {
+	content, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Println("Reading payload from body failed.")
+		http.Error(w, "Reading payload failed.", http.StatusInternalServerError)
+		return
+	}
+	if len(string(content)) == 0 {
+		log.Println("Content appears to be empty.")
+		http.Error(w, "Your payload (to be stored as document) appears to be empty. Ensure to terminate URI with /.", http.StatusBadRequest)
+		return
+	} else {
+		c := models.CountryInfo{}
+		err := json.Unmarshal(content, &c)
+		if err != nil {
+			log.Println("Error unmarshalling payload.")
+			http.Error(w, "Error unmarshalling payload.", http.StatusInternalServerError)
+			return
+		}
+		c.LastRetrieval = time.Now()
+		id, _, err2 := client.Collection(collection).Add(ctx, c)
+		if err2 != nil {
+			log.Println("Error when adding document " + string(content) + ", Error: " + err2.Error())
+			http.Error(w, "Error when adding document "+string(content)+", Error: "+err2.Error(), http.StatusBadRequest)
+			return
+		} else {
+			log.Println("Document added to collection. Identifier of returned document: " + id.ID)
+			http.Error(w, id.ID, http.StatusCreated)
+			return
+		}
+	}
 }
 
 // OLD CODE BROUGHT FROM FIRESTORE DEMO
