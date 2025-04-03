@@ -164,6 +164,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// putRegistration updates an existing registration in Firestore.
 func putRegistration(w http.ResponseWriter, r *http.Request) {
 	// Extract the registration ID from the URL path
 	parts := strings.Split(r.URL.Path, "/")
@@ -192,8 +193,15 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		// Respond with a confirmation message and the updated registration data.
+		response := map[string]interface{}{
+			"message":     "Registration updated successfully",
+			"updatedData": registration,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
 	} else {
+		// If no ID is provided, return a 400 error.
 		http.Error(w, "No ID provided", http.StatusBadRequest)
 	}
 }
