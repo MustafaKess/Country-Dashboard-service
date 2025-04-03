@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"context"
@@ -9,6 +10,14 @@ import (
 	"strings"
 	"time"
 )
+
+//
+// Error codes scenarios:
+// 400: Bad Request
+// 404: Not Found
+// 405: Method Not Allowed
+// 500: Internal Server Error
+//
 
 // RegistrationsHandler handles the main logic for the /registrations endpoint.
 // It distinguishes between GET and POST requests.
@@ -29,7 +38,7 @@ func RegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		// If method is not allowed, return a 405 error.
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, errorMessages.MethodNotAllowed, http.StatusMethodNotAllowed)
 	}
 }
 
@@ -43,14 +52,15 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		// Decode the incoming JSON data into the registration model.
 		err := json.NewDecoder(r.Body).Decode(&registration)
 		if err != nil {
-			http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+			http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
 			return
 		}
 
 		// Add the registration to Firestore and retrieve the document reference.
+		// Do not change the path to the collection, its the path to the collection in Firestore.
 		docR, _, err := firestore.Client.Collection("registrations").Add(context.Background(), registration)
 		if err != nil {
-			http.Error(w, "Could not store to Firestore: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, errorMessages.FirestoreError+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -62,11 +72,11 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		// Update the Firestore document with the registration data.
 		_, err = docR.Set(context.Background(), registration)
 		if err != nil {
-			http.Error(w, "Could not update doc with ID: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, errorMessages.InvalidRegistrationID+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Return the ID and LastChange time in the response.
+		// Return the ID and LastChange time in the response. Confirmation message in JSON for the client.
 		response := map[string]interface{}{
 			"id":         id,
 			"lastChange": registration.LastChange,
@@ -99,7 +109,7 @@ func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 	doc, err := firestore.Client.Collection("registrations").Doc(id).Get(context.Background())
 	if err != nil {
 		// If the document is not found, return a 404 error.
-		http.Error(w, "No register found with given ID", http.StatusNotFound)
+		http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
 		return
 	}
 
@@ -159,7 +169,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		_, err := firestore.Client.Collection("registrations").Doc(id).Delete(context.Background())
 		if err != nil {
 			// If there's an error, return a 500 error response
-			http.Error(w, "Could not delete registration: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -173,7 +183,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 	} else {
 		// If no ID is provided in the URL, return a 400 error.
-		http.Error(w, "No ID provided", http.StatusBadRequest)
+		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 	}
 }
 
@@ -193,7 +203,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		// Decode the incoming JSON data into the registration model.
 		err := json.NewDecoder(r.Body).Decode(&registration)
 		if err != nil {
-			http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+			http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
 			return
 		}
 
@@ -202,7 +212,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		registration.LastChange = time.Now()
 		_, err = docR.Set(context.Background(), registration)
 		if err != nil {
-			http.Error(w, "Could not update doc with ID: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -215,6 +225,6 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(response)
 	} else {
 		// If no ID is provided, return a 400 error.
-		http.Error(w, "No ID provided", http.StatusBadRequest)
+		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 	}
 }
