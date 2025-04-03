@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
-	"Country-Dashboard-Service/internal/storage"
+	"context"
 	"encoding/json"
+	"github.com/gorilla/mux"
 	"net/http"
+	"time"
 )
 
 func RegistrationsHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,15 +18,6 @@ func RegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		postRegistrationsHandler(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-
-	}
-
-}
-
-// getRegistrationsHandler retrieves all the documents from the "registrations" collection
-func getRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		storage.DisplayConfig(w, r)
 	}
 }
 
@@ -36,18 +30,79 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Validate fields (customize as per your schema)
-		if registration.Country == "" || registration.IsoCode == "" {
-			http.Error(w, "Missing required fields", http.StatusBadRequest)
+		docR, _, err := firestore.Client.Collection("registrations").Add(context.Background(), registration)
+		if err != nil {
+			http.Error(w, "Could not store to Firestore: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Optionally, you can validate features or other fields as needed:
-		if len(registration.Features.TargetCurrencies) == 0 {
-			http.Error(w, "At least one target currency is required", http.StatusBadRequest)
+		id := docR.ID
+		registration.ID = id
+		registration.LastChange = time.Now()
+
+		_, err = docR.Set(context.Background(), registration)
+		if err != nil {
+			http.Error(w, "Could not update doc with ID: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		storage.AddDoc(w, r, "registrations")
+		response := map[string]interface{}{
+			"id":         id,
+			"lastChange": registration.LastChange,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
 	}
+}
+
+func getRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	if id != "" {
+		getSpecifiedRegistration(w, r)
+	} else {
+		getAllRegistrations(w, r)
+	}
+}
+
+func getSpecifiedRegistration(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	doc, err := firestore.Client.Collection("registrations").Doc(id).Get(context.Background())
+	if err != nil {
+		http.Error(w, "No register found with given ID", http.StatusNotFound)
+		return
+	}
+
+	var reg models.Registration
+	err = doc.DataTo(&reg)
+	if err != nil {
+		http.Error(w, "Error with deserialization"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(reg)
+}
+
+func getAllRegistrations(w http.ResponseWriter, r *http.Request) {
+	iter := firestore.Client.Collection("registrations").Documents(context.Background())
+	var all []models.Registration
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			break
+		}
+		var reg models.Registration
+		err = doc.DataTo(&reg)
+		if err != nil {
+			continue // skip broken document
+		}
+		all = append(all, reg)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(all)
 }
