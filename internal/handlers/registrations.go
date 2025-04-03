@@ -145,6 +145,7 @@ func getAllRegistrations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(all)
 }
 
+// deleteRegistration deletes a specific registration from Firestore.
 func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 	// Extract the registration ID from the URL path
 	parts := strings.Split(r.URL.Path, "/")
@@ -153,13 +154,25 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 	if len(parts) > 4 && parts[4] != "" {
 		// If ID is provided, delete the specific registration.
 		id := parts[4]
+
+		// Attempt to delete the document from Firestore
 		_, err := firestore.Client.Collection("registrations").Doc(id).Delete(context.Background())
 		if err != nil {
+			// If there's an error, return a 500 error response
 			http.Error(w, "Could not delete registration: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+
+		// Return a JSON response confirming the deletion and showing the ID of the deleted registration.
+		response := map[string]interface{}{
+			"message": "Registration deleted successfully",
+			"id":      id,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+
 	} else {
+		// If no ID is provided in the URL, return a 400 error.
 		http.Error(w, "No ID provided", http.StatusBadRequest)
 	}
 }
