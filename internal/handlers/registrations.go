@@ -19,7 +19,14 @@ func RegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		getRegistrationsHandler(w, r)
 	case http.MethodPost:
 		// Handles POST requests to create new registrations.
-		PostRegistrationsHandler(w, r)
+		postRegistrationsHandler(w, r)
+	case http.MethodDelete:
+		// Handles DELETE requests to remove registrations.
+		deleteRegistration(w, r)
+	case http.MethodPut:
+		// Handles PUT requests to update existing registrations.
+		putRegistration(w, r)
+
 	default:
 		// If method is not allowed, return a 405 error.
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -28,7 +35,7 @@ func RegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 
 // PostRegistrationsHandler processes a POST request to create a new registration.
 // It expects the body to be a JSON object representing a registration.
-func PostRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
+func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// Define a variable to hold the registration data.
 		var registration models.Registration
@@ -78,16 +85,16 @@ func getRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if an ID exists after "/dashboard/v1/registrations/"
 	if len(parts) > 4 && parts[4] != "" {
 		// If ID is provided, fetch the specific registration.
-		GetSpecifiedRegistration(w, parts[4])
+		getSpecifiedRegistration(w, parts[4])
 		return
 	}
 
 	// If no ID is provided, fetch all registrations.
-	GetAllRegistrations(w, r)
+	getAllRegistrations(w, r)
 }
 
 // GetSpecifiedRegistration fetches a specific registration from Firestore based on the given ID.
-func GetSpecifiedRegistration(w http.ResponseWriter, id string) {
+func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 	// Fetch the document from Firestore using the provided ID.
 	doc, err := firestore.Client.Collection("registrations").Doc(id).Get(context.Background())
 	if err != nil {
@@ -111,7 +118,7 @@ func GetSpecifiedRegistration(w http.ResponseWriter, id string) {
 }
 
 // GetAllRegistrations retrieves all registrations from Firestore.
-func GetAllRegistrations(w http.ResponseWriter, r *http.Request) {
+func getAllRegistrations(w http.ResponseWriter, r *http.Request) {
 	// Fetch all documents in the "registrations" collection.
 	iter := firestore.Client.Collection("registrations").Documents(context.Background())
 	var all []models.Registration
@@ -136,4 +143,57 @@ func GetAllRegistrations(w http.ResponseWriter, r *http.Request) {
 	// Return all registrations as a JSON response.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(all)
+}
+
+func deleteRegistration(w http.ResponseWriter, r *http.Request) {
+	// Extract the registration ID from the URL path
+	parts := strings.Split(r.URL.Path, "/")
+
+	// Check if an ID exists after "/dashboard/v1/registrations/"
+	if len(parts) > 4 && parts[4] != "" {
+		// If ID is provided, delete the specific registration.
+		id := parts[4]
+		_, err := firestore.Client.Collection("registrations").Doc(id).Delete(context.Background())
+		if err != nil {
+			http.Error(w, "Could not delete registration: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		http.Error(w, "No ID provided", http.StatusBadRequest)
+	}
+}
+
+func putRegistration(w http.ResponseWriter, r *http.Request) {
+	// Extract the registration ID from the URL path
+	parts := strings.Split(r.URL.Path, "/")
+
+	// Check if an ID exists after "/dashboard/v1/registrations/"
+	if len(parts) > 4 && parts[4] != "" {
+		// If ID is provided, update the specific registration.
+		id := parts[4]
+
+		// Define a variable to hold the updated registration data.
+		var registration models.Registration
+
+		// Decode the incoming JSON data into the registration model.
+		err := json.NewDecoder(r.Body).Decode(&registration)
+		if err != nil {
+			http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+			return
+		}
+
+		// Update the Firestore document with the registration data.
+		docR := firestore.Client.Collection("registrations").Doc(id)
+		registration.LastChange = time.Now()
+		_, err = docR.Set(context.Background(), registration)
+		if err != nil {
+			http.Error(w, "Could not update doc with ID: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		http.Error(w, "No ID provided", http.StatusBadRequest)
+	}
 }
