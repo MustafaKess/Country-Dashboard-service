@@ -163,25 +163,31 @@ func getAllRegistrations(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(all)
 }
 
-// deleteRegistration deletes a specific registration from Firestore.
 func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 	// Extract the registration ID from the URL path
 	parts := strings.Split(r.URL.Path, "/")
 
 	// Check if an ID exists after "/dashboard/v1/registrations/"
 	if len(parts) > 4 && parts[4] != "" {
-		// If ID is provided, delete the specific registration.
 		id := parts[4]
+		docRef := firestore.Client.Collection("registrations").Doc(id)
 
-		// Attempt to delete the document from Firestore
-		_, err := firestore.Client.Collection("registrations").Doc(id).Delete(context.Background())
+		// Check if the document exists before trying to delete it
+		_, err := docRef.Get(context.Background())
 		if err != nil {
-			// If there's an error, return a 500 error response
+			// If the document doesn't exist or there's an error retrieving it
+			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
+			return
+		}
+
+		// Proceed with deletion
+		_, err = docRef.Delete(context.Background())
+		if err != nil {
 			http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Return a JSON response confirming the deletion and showing the ID of the deleted registration.
+		// Return a success response
 		response := map[string]interface{}{
 			"message": "Registration deleted successfully",
 			"id":      id,
@@ -190,7 +196,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(response)
 
 	} else {
-		// If no ID is provided in the URL, return a 400 error.
+		// No ID was provided
 		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 	}
 }
