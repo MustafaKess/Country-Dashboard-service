@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// Handles GET requests for a specific dashboard ID
 func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	// Get dashboard ID from path
 	parts := strings.Split(r.URL.Path, "/")
