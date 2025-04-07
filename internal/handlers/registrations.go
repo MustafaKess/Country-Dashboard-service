@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -53,6 +55,11 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		err := json.NewDecoder(r.Body).Decode(&registration)
 		if err != nil {
 			http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
+			return
+		}
+
+		if err := ValidateRegistration(registration); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -228,4 +235,65 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		// If no ID is provided, return a 400 error.
 		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 	}
+}
+
+func ValidateRegistration(registration models.Registration) error {
+	if registration.Country == "" {
+		return fmt.Errorf("country name is required")
+	}
+
+	if registration.IsoCode == "" {
+		return fmt.Errorf("ISO code is required")
+	}
+
+	// Delegate ISO code validation to a dedicated function
+	if err := ValidateISOCode(registration.Country, registration.IsoCode); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ValidateISOCode(country string, isoCode string) error {
+	// Build the request URL and perform the HTTP GET request
+	apiURL := fmt.Sprintf(constants.RestCountriesAPI+"/name/%s", country)
+	resp, err := http.Get(apiURL)
+	if err != nil {
+		return fmt.Errorf("failed to validate country with external API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Handle specific error for 404 (not found)
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("country '%s' is not recognized", country)
+	}
+	// Generic error for other non-200 responses
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("external API returned unexpected status: %s", resp.Status)
+	}
+	// Decode the JSON response
+	var apiResponse []map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&apiResponse)
+	if err != nil {
+		return fmt.Errorf("failed to decode external API response: %v", err)
+	}
+	// Check for data presence and extract cca2
+	if len(apiResponse) == 0 {
+		return fmt.Errorf("no data found for country: %s", country)
+	}
+	cca2Raw, ok := apiResponse[0]["cca2"]
+	if !ok {
+		return fmt.Errorf("ISO code (cca2) not found in API response")
+	}
+	cca2, ok := cca2Raw.(string)
+	if !ok {
+		return fmt.Errorf("invalid ISO code format in API response")
+	}
+
+	// Compare ISO codes, case-insensitively
+	if strings.ToUpper(cca2) != strings.ToUpper(isoCode) {
+		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
+	}
+
+	return nil
 }
