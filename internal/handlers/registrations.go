@@ -146,6 +146,7 @@ func getAllRegistrations(w http.ResponseWriter, r *http.Request) {
 			// Skip broken documents.
 			continue
 		}
+		reg.ID = doc.Ref.ID
 		// Add valid registrations to the list.
 		all = append(all, reg)
 	}
