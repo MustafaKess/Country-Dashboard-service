@@ -85,3 +85,16 @@ func getAllNotifications(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(registrations)
 }
+func deleteNotificationHandler(w http.ResponseWriter, id string) {
+	_, err := firestore.Client.Collection("notifications").Doc(id).Delete(context.Background())
+	if err != nil {
+		http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	response := map[string]interface{}{
+		"message": "message deleted successfully",
+		"id":      id,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
