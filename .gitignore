@@ -1,2 +1,6 @@
 # Ignore JetBrains IDE settings
 .idea/
+
+# Ignore env files, MEEEEEGAA important do not touch this part
+.env/
+env/
