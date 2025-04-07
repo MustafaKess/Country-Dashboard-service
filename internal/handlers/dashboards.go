@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
 	"encoding/json"
@@ -9,9 +10,9 @@ import (
 	"time"
 )
 
-// Handles GET requests for a specific dashboard ID
+// GetPopulatedDashboard handles GET requests for a populated dashboard by ID
 func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
-	// Get dashboard ID from path
+	// Extract ID from URL path
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 || parts[4] == "" {
 		http.Error(w, "Missing dashboard ID", http.StatusBadRequest)
@@ -19,47 +20,78 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	id := parts[4]
 
-	// Load config
-	config, err := storage.GetDashboardConfigByID(id)
+	// Load full registration (from Firestore)
+	config, err := firestore.GetDashboardConfigByID(id)
 	if err != nil {
-		http.Error(w, "Dashboard not found", http.StatusNotFound)
+		http.Error(w, "Dashboard config not found", http.StatusNotFound)
 		return
 	}
 
-	// Get country info
+	// Get country data
 	countryInfo, err := services.GetCountryInfo(config.Country)
 	if err != nil {
 		http.Error(w, "Failed to fetch country data", http.StatusBadGateway)
 		return
 	}
 
-	// Get weather info
-	temp, precip, err := services.GetWeatherData(countryInfo.Latitude, countryInfo.Longitude)
-	if err != nil {
-		http.Error(w, "Failed to fetch weather data", http.StatusBadGateway)
-		return
+	// Get weather data if requested
+	var temperature float64
+	var precipitation float64
+	if config.Features.Temperature || config.Features.Precipitation {
+		temp, precip, err := services.GetWeatherData(countryInfo.Latitude, countryInfo.Longitude)
+		if err != nil {
+			http.Error(w, "Failed to fetch weather data", http.StatusBadGateway)
+			return
+		}
+		temperature = temp
+		precipitation = precip
 	}
 
-	// TODO: Fetch currency info
-	targetCurrencies := make(map[string]float64) // placeholder
+	// Get currency rates if requested
+	targetCurrencies := make(map[string]float64)
+	if len(config.Features.TargetCurrencies) > 0 {
+		rates, err := services.GetExchangeRates(countryInfo.Currency, config.Features.TargetCurrencies)
+		if err != nil {
+			http.Error(w, "Failed to fetch currency data", http.StatusBadGateway)
+			return
+		}
+		targetCurrencies = rates
+	}
 
-	// Build response
+	// Build features object based on selected options
+	features := models.DashboardFeatures{}
+
+	if config.Features.Temperature {
+		features.Temperature = temperature
+	}
+	if config.Features.Precipitation {
+		features.Precipitation = precipitation
+	}
+	if config.Features.Capital {
+		features.Capital = countryInfo.Capital
+	}
+	if config.Features.Coordinates {
+		features.Coordinates = models.Coordinates{
+			Latitude:  countryInfo.Latitude,
+			Longitude: countryInfo.Longitude,
+		}
+	}
+	if config.Features.Population {
+		features.Population = countryInfo.Population
+	}
+	if config.Features.Area {
+		features.Area = countryInfo.Area
+	}
+	if len(config.Features.TargetCurrencies) > 0 {
+		features.TargetCurrencies = targetCurrencies
+	}
+
+	// Build final response
 	response := models.PopulatedDashboard{
 		Country:       countryInfo.Name,
 		ISOCode:       countryInfo.ISOCode,
 		LastRetrieval: time.Now().Format("20060102 15:04"),
-		Features: models.DashboardFeatures{
-			Temperature:   temp,
-			Precipitation: precip,
-			Capital:       countryInfo.Capital,
-			Coordinates: models.Coordinates{
-				Latitude:  countryInfo.Latitude,
-				Longitude: countryInfo.Longitude,
-			},
-			Population:       countryInfo.Population,
-			Area:             countryInfo.Area,
-			TargetCurrencies: targetCurrencies,
-		},
+		Features:      features,
 	}
 
 	// Send response
