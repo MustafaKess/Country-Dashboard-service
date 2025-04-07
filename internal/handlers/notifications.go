@@ -33,7 +33,7 @@ func NotificationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func postNotificationHandler(w http.ResponseWriter, r *http.Request) {
-	var registration models.WebhookRegistration
+	var registration models.Registration
 	if err := json.NewDecoder(r.Body).Decode(&registration); err != nil {
 		http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
 		return
@@ -53,4 +53,35 @@ func postNotificationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(response)
+}
+func getSpecificNotificationHandler(w http.ResponseWriter, id string) {
+	doc, err := firestore.Client.Collection("notifications").Doc(id).Get(context.Background())
+	if err != nil {
+		http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
+		return
+	}
+	var registration models.Registration
+	if err = doc.DataTo(&registration); err != nil {
+		http.Error(w, "Error deserialising data"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(registration)
+}
+func getAllNotifications(w http.ResponseWriter, r *http.Request) {
+	iter := firestore.Client.Collection("notifications").Documents(context.Background())
+	var registrations []models.Registration
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			break
+		}
+		var reg models.Registration
+		if err = doc.DataTo(&reg); err != nil {
+			continue
+		}
+		registrations = append(registrations, reg)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(registrations)
 }
