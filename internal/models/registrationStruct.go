@@ -22,4 +22,5 @@ type Registration struct {
 	IsoCode    string    `json:"isoCode" firestore:"iso_code"`          // ISO 2-letter code for the country
 	Features   Features  `json:"features" firestore:"features"`         // Features to be displayed on the dashboard
 	LastChange time.Time `json:"lastChange" firestore:"last_change"`    // Timestamp of the last change
+	URL        string    `json:"url" firestore:"url"`
 }
