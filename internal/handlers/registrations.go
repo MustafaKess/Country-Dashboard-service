@@ -5,6 +5,7 @@ import (
 	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
+	"Country-Dashboard-Service/internal/services"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -82,6 +83,9 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.InvalidRegistrationID+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// After successful Firestore write, trigger webhook
+		services.TriggerWebhookEvent(constants.EventRegister, registration.IsoCode)
 
 		// Return the ID and LastChange time in the response. Confirmation message in JSON for the client.
 		response := map[string]interface{}{
@@ -173,10 +177,18 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		docRef := firestore.Client.Collection("registrations").Doc(id)
 
 		// Check if the document exists before trying to delete it
-		_, err := docRef.Get(context.Background())
+		docSnap, err := docRef.Get(context.Background())
 		if err != nil {
 			// If the document doesn't exist or there's an error retrieving it
 			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
+			return
+		}
+
+		// Extract the ISO code before deletion (required for the webhook)
+		var reg models.Registration
+		err = docSnap.DataTo(&reg)
+		if err != nil {
+			http.Error(w, "Failed to extract registration data", http.StatusInternalServerError)
 			return
 		}
 
@@ -186,6 +198,9 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Trigger webhook
+		services.TriggerWebhookEvent(constants.EventDelete, reg.IsoCode)
 
 		// Return a success response
 		response := map[string]interface{}{
@@ -229,6 +244,9 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Trigger webhook
+		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
 
 		// Respond with a confirmation message and the updated registration data.
 		response := map[string]interface{}{

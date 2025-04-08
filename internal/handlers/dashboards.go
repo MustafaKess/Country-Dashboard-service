@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
@@ -93,6 +94,9 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 		LastRetrieval: time.Now().Format("20060102 15:04"),
 		Features:      features,
 	}
+
+	// Trigger webhooks for INVOKE event
+	services.TriggerWebhookEvent(constants.EventInvoke, countryInfo.ISOCode)
 
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
