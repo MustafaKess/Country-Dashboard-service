@@ -133,6 +133,8 @@ func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 		return
 	}
 
+	reg.ID = doc.Ref.ID
+
 	// Return the registration as a JSON response.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(reg)

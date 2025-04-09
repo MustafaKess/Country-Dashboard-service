@@ -4,12 +4,14 @@ import (
 	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
+	"Country-Dashboard-Service/internal/services"
 	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // Utility function to insert a test webhook into Firestore.
@@ -156,5 +158,50 @@ func TestNotificationsMethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected status 405 Method Not Allowed, got %d", w.Code)
+	}
+}
+
+func TestTriggerWebhookEvent_SendsNotification(t *testing.T) {
+	received := make(chan bool, 1)
+
+	// Start a mock webhook server that listens for the trigger
+	mockWebhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+
+		var payload map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("Failed to decode webhook payload: %v", err)
+		}
+
+		if payload["country"] != "NO" || payload["event"] != constants.EventRegister {
+			t.Errorf("Unexpected webhook payload: %v", payload)
+		}
+
+		received <- true
+	}))
+	defer mockWebhook.Close()
+
+	// Register the webhook to point to the mock server
+	webhook := models.WebhookRegistration{
+		URL:     mockWebhook.URL,
+		Country: "NO",
+		Event:   constants.EventRegister,
+	}
+	_, _, err := firestore.Client.Collection("notifications").Add(context.Background(), webhook)
+	if err != nil {
+		t.Fatalf("Failed to register webhook: %v", err)
+	}
+
+	// Trigger it
+	services.TriggerWebhookEvent(constants.EventRegister, "NO")
+
+	// Check that the mock server received the webhook
+	select {
+	case <-received:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timed out waiting for webhook event")
 	}
 }
