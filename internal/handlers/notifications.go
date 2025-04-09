@@ -106,11 +106,22 @@ func getAllNotificationsHandler(w http.ResponseWriter, r *http.Request) {
 
 // deleteNotificationHandler deletes a specific webhook registration.
 func deleteNotificationHandler(w http.ResponseWriter, id string) {
-	_, err := firestore.Client.Collection("notifications").Doc(id).Delete(context.Background())
+	docRef := firestore.Client.Collection("notifications").Doc(id)
+
+	// Check if the document exists
+	_, err := docRef.Get(context.Background())
+	if err != nil {
+		http.Error(w, errorMessages.NotificationNotFound, http.StatusNotFound)
+		return
+	}
+
+	// Proceed with deletion
+	_, err = docRef.Delete(context.Background())
 	if err != nil {
 		http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	response := map[string]interface{}{
 		"message": "Notification deleted successfully",
 		"id":      id,

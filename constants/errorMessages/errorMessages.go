@@ -14,4 +14,6 @@ const (
 
 	NoIDProvided     = "No ID provided in the request"
 	RegisterNotFound = "No register found with given ID "
+
+	NotificationNotFound = "Notification not found"
 )

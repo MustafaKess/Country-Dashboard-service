@@ -5,8 +5,8 @@ import (
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
-	"Country-Dashboard-Service/internal/utils"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +25,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	// Load full registration (from Firestore)
 	config, err := firestore.GetDashboardConfigByID(id)
 	if err != nil {
+		fmt.Println("Failed to get dashboard config:", err) // Debug
 		http.Error(w, "Dashboard config not found", http.StatusNotFound)
 		return
 	}
@@ -32,6 +33,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	// Get country data
 	countryInfo, err := services.GetCountryInfo(config.Country)
 	if err != nil {
+		fmt.Println("Failed to fetch country data:", err) // Debug
 		http.Error(w, "Failed to fetch country data", http.StatusBadGateway)
 		return
 	}
@@ -42,6 +44,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	if config.Features.Temperature || config.Features.Precipitation {
 		temp, precip, err := services.GetWeatherData(countryInfo.Latitude, countryInfo.Longitude)
 		if err != nil {
+			fmt.Println("Failed to fetch weather data:", err) // Debug
 			http.Error(w, "Failed to fetch weather data", http.StatusBadGateway)
 			return
 		}
@@ -54,6 +57,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	if len(config.Features.TargetCurrencies) > 0 {
 		rates, err := services.GetExchangeRates(countryInfo.Currency, config.Features.TargetCurrencies)
 		if err != nil {
+			fmt.Println("Failed to fetch currency data:", err) // Debug
 			http.Error(w, "Failed to fetch currency data", http.StatusBadGateway)
 			return
 		}
@@ -92,9 +96,8 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	response := models.PopulatedDashboard{
 		Country:       countryInfo.Name,
 		ISOCode:       countryInfo.ISOCode,
-		LastRetrieval: utils.CustomTime{Time: time.Now()},
-		//LastRetrieval: time.Now().Format("20060102 15:04"),
-		Features: features,
+		LastRetrieval: time.Now().Format("20060102 15:04"),
+		Features:      features,
 	}
 
 	// Trigger webhooks for INVOKE event

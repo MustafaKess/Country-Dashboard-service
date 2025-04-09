@@ -137,6 +137,8 @@ func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 		return
 	}
 
+	reg.ID = doc.Ref.ID
+
 	// Return the registration as a JSON response.
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(reg)
@@ -321,8 +323,8 @@ func ValidateISOCode(country string, isoCode string) error {
 		return fmt.Errorf("invalid ISO code format in API response")
 	}
 
-	// Compare ISO codes
-	if strings.ToUpper(cca2) != strings.ToUpper(isoCode) {
+	// Compare ISO codes, case-insensitively
+	if !strings.EqualFold(cca2, isoCode) {
 		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
 	}
 
