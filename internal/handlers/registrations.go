@@ -315,7 +315,7 @@ func ValidateISOCode(country string, isoCode string) error {
 	}
 
 	// Compare ISO codes, case-insensitively
-	if strings.ToUpper(cca2) != strings.ToUpper(isoCode) {
+	if !strings.EqualFold(cca2, isoCode) {
 		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
 	}
 
