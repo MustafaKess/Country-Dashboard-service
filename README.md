@@ -30,11 +30,34 @@ August:
 - Dashboard endpoint 
 - Test files 
 
-Sethu 
+Sethushan: 
 - Webhooks 
 - Notification endpoint
 
 ---
+# How to run locally 
+
+To run the Country Dashboard Service locally, follow the steps below:
+
+### Prerequisites
+
+- Go (version 1.18 or higher) installed.
+- Your own running Firestore instance on https://firebase.google.com/  
+- Internet connection to connect to external API's
+
+### Steps:
+
+1. Clone the repository 
+2. Install necessary dependecies
+3. Set up your own firebase and download the key. Name it `firebaseKey.json`
+4. Make a new folder in your project files called ".env" and put the firebase key in that folder
+5. Run the application with 
+```bash
+go run main.go
+```
+6. To access the application. Open a browser and go to `http://localhost:8080` with the various endpoints listed bellow.
+
+
 ## Final Endpoints  
 
 - `/dashboard/v1/registrations/`  
@@ -79,6 +102,10 @@ Should include:
 }
 ```
 
+Note that the POST request will be invalid if:
+- Country name is not recognized from the REST countries API
+- isoCode do not match it's countries iso3 code  
+
 ### (GET) - request
 
 Returns all stored configurations (records from previous POST requests)
@@ -100,7 +127,7 @@ Returns all stored configurations (records from previous POST requests)
       "area": false,
       "targetCurrencies": ["EUR", "USD", "SEK"]
     },
-    "lastChange": "20250229 14:07"
+    "lastChange":"2025-04-07 14:54:02 CEST"
   },
   {
     "id": "bc89adc23e27f42a",
@@ -115,7 +142,7 @@ Returns all stored configurations (records from previous POST requests)
       "area": true,
       "targetCurrencies": ["NOK", "MYR", "JPY", "EUR"]
     },
-    "lastChange": "20250224 08:27"
+    "lastChange": "2025-04-05 20:30:00 CEST"
   }
 ```
 
@@ -141,29 +168,36 @@ Example for `id` = `516dba7f015f2a68`
     "area": false,
     "targetCurrencies": ["EUR", "USD", "SEK"]
   },
-  "lastChange": "20250229 14:07"
+  "lastChange": "2025-04-07 14:54:02 CEST"
 }
 ```
+
+### Time format management
+Originally time was shown in `unix.time` timestamp, 
+this would work and looks fine and readable on the database, but since the client would read the time in JSON format it would look like this
+`2025-04-09T10:07:57.248557Z`, we therefore have altered it to always show the time in CEST as shown above. 
+This is not flexible from where the client is located but rather will always be set to the current time in CEST.  
+
 ### (PUT) - request
 
-Update an individual configuration identified by its ID. This update should lead to a change in the configuration and an update of the associated timestamp (`lastChange`).
+Update an individual configuration identified by its ID. This will update configuration as requested and will also update the timestamp of `lastChange`.
 
 #### Request – `PUT /dashboard/v1/registrations/{id}`
 
-Example request for `id` = `516dba7f015f2a68`:
+Where `{id}` is the id of the registration to be changed
 
 ```json
 {
   "country": "Norway",
   "isoCode": "NO",
   "features": {
-    "temperature": false,  // This value is to be changed
+    "temperature": false,  // value to be changed
     "precipitation": true,
     "capital": true,
     "coordinates": true,
     "population": true,
     "area": false,
-    "targetCurrencies": ["EUR", "SEK"]  // This value is to be changed
+    "targetCurrencies": ["EUR", "SEK"]  // value to be changed
   }
 }
 ```
@@ -191,8 +225,7 @@ Example request for `id` = `516dba7f015f2a68`:
 
 ### (GET) - request
 
-Retrieve the populated dashboard for a given country configuration. The dashboard includes features like:
-
+Retrieve the populated dashboard for a given country configuration. The dashboard includes features like: 
 - Temperature
 - Precipitation
 - Capital
@@ -202,15 +235,20 @@ Retrieve the populated dashboard for a given country configuration. The dashboar
 - TargetCurrencies
 - Last retrieval
 
-**Request Parameters**:
+If any of these features are checked off as false in the `registrations` document, it will not show up in the dashboards page. 
+
+**Request Parameters**: (brought from the registrations)
 - Country name
-- ISO code
+- ISO code <br>
+
+Validators will make sure that these match when trying to POST a registration
 
 Example request: 
-
-- **Request**: `GET /dashboard/v1/dashboards/{id} <br>
-Where id is brought from a register
-
+```
+Request: GET
+Path: /dashboard/v1/dashboards/{id}
+```
+Where {id} is an id from a register. <br>
 **Response**:
 
 ```json
@@ -233,10 +271,19 @@ Where id is brought from a register
                 "SEK": 0.97827275
                 }
          },
-"lastRetrieval": "20250229 18:15" // this should be the current time (i.e., the time of retrieval)
+"lastRetrieval":"2025-04-09 14:54:02 CEST" // this should be the current time (i.e., the time of retrieval)
 }
 ```
 ## Endpoint: `/dashboard/v1/notifications/`
+
+Users can register webhooks that are triggered by the service based on specified events.
+These events consists of: 
+- If a new configuration is created
+- If a configuration is changed or deleted
+- Invocation event (when dashboard for a given country is invoked)
+- Users can register multiple webhooks
+
+These webhooks are stored persistently in the database and will stay until manually deleted with a `DELETE` request 
 
 ### (POST) - Register Webhook
 
@@ -253,16 +300,16 @@ Content type: application/json
 
 When registering a webhook, the body should contain the following information:
 
-- **url**: The URL that will be triggered when the specified event occurs. This is the service endpoint to be invoked.
-- **country**: The country associated with the event trigger. If this field is left empty, the webhook will be triggered for any country.
-- **event**: The event type that triggers the webhook. The following event types are supported:
-  - **REGISTER**: The webhook is invoked when a new configuration is registered.
-  - **CHANGE**: The webhook is invoked when a configuration is modified.
-  - **DELETE**: The webhook is invoked when a configuration is deleted.
-  - **INVOKE**: The webhook is invoked when a dashboard for a given country is retrieved (i.e., a GET request on the `/dashboard/v1/dashboards/` endpoint).
+- `url`: The URL that will be triggered when the specified event occurs. This is the service endpoint to be invoked.
+- `country`: The country associated with the event trigger. If this field is left empty, the webhook will be triggered for any country.
+- `event`: The event type that triggers the webhook. The following event types are supported:
+  - `REGISTER`: The webhook is invoked when a new configuration is registered.
+  - `CHANGE`: The webhook is invoked when a configuration is modified.
+  - `DELETE`: The webhook is invoked when a configuration is deleted.
+  - `INVOKE`: The webhook is invoked when a dashboard for a given country is retrieved (i.e., a GET request on the `/dashboard/v1/dashboards/` endpoint).
 
 
-**Body** (Example):
+**Body** (Example for an `INVOKE` event):
 
 ```json
 {
@@ -272,8 +319,12 @@ When registering a webhook, the body should contain the following information:
 }
 ```
 This will respond with the ID for the registration that can used to see detail information or to delete the webhook registration.
-
-
+```
+{
+    "id": {id}
+}
+```
+Where `{id}` is the ID of the registation.
 ### (DELETE) - Delete webhook
 
 ```
