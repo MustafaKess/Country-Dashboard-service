@@ -5,6 +5,8 @@ import (
 	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
+	"Country-Dashboard-Service/internal/services"
+	"Country-Dashboard-Service/internal/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -74,7 +76,7 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		// Get the document ID and update the registration's LastChange timestamp.
 		id := docR.ID
 		registration.ID = id
-		registration.LastChange = time.Now()
+		registration.LastChange = utils.CustomTime{Time: time.Now()}
 
 		// Update the Firestore document with the registration data.
 		_, err = docR.Set(context.Background(), registration)
@@ -84,7 +86,10 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// Trigger webhook for the REGISTER event.
 		// The event type is "REGISTER" and we pass the ISO code from the registration.
-		go TriggerWebhookEvent("REGISTER", registration.IsoCode)
+		services.TriggerWebhookEvent("REGISTER", registration.IsoCode)
+
+		// After successful Firestore write, trigger webhook
+		services.TriggerWebhookEvent(constants.EventRegister, registration.IsoCode)
 
 		// Return the ID and LastChange time in the response. Confirmation message in JSON for the client.
 		response := map[string]interface{}{
@@ -176,20 +181,18 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		docRef := firestore.Client.Collection("registrations").Doc(id)
 
 		// Check if the document exists before trying to delete it
-		_, err := docRef.Get(context.Background())
+		docSnap, err := docRef.Get(context.Background())
 		if err != nil {
 			// If the document doesn't exist or there's an error retrieving it
 			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
 			return
 		}
-		doc, err := docRef.Get(context.Background())
-		if err != nil {
-			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
-			return
-		}
+
+		// Extract the ISO code before deletion (required for the webhook)
 		var reg models.Registration
-		if err := doc.DataTo(&reg); err != nil {
-			http.Error(w, "Error deserializing registration: "+err.Error(), http.StatusInternalServerError)
+		err = docSnap.DataTo(&reg)
+		if err != nil {
+			http.Error(w, "Failed to extract registration data", http.StatusInternalServerError)
 			return
 		}
 
@@ -199,9 +202,9 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// Trigger webhook for the DELETE event.
-		// Pass the ISO code if available; otherwise an empty string.
-		go TriggerWebhookEvent("DELETE", reg.IsoCode)
+
+		// Trigger webhook
+		services.TriggerWebhookEvent(constants.EventDelete, reg.IsoCode)
 
 		// Return a success response
 		response := map[string]interface{}{
@@ -239,7 +242,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 
 		// Update the Firestore document with the registration data.
 		docR := firestore.Client.Collection("registrations").Doc(id)
-		registration.LastChange = time.Now()
+		registration.LastChange = utils.CustomTime{Time: time.Now()}
 		_, err = docR.Set(context.Background(), registration)
 		if err != nil {
 			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
@@ -247,7 +250,10 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		}
 		// Trigger webhook for the CHANGE event.
 		// The event type is "CHANGE" and we pass the updated ISO code.
-		go TriggerWebhookEvent("CHANGE", registration.IsoCode)
+		services.TriggerWebhookEvent("CHANGE", registration.IsoCode)
+
+		// Trigger webhook
+		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
 
 		// Respond with a confirmation message and the updated registration data.
 		response := map[string]interface{}{

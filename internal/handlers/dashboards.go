@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
+	"Country-Dashboard-Service/internal/utils"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -90,12 +92,13 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	response := models.PopulatedDashboard{
 		Country:       countryInfo.Name,
 		ISOCode:       countryInfo.ISOCode,
-		LastRetrieval: time.Now().Format("20060102 15:04"),
-		Features:      features,
+		LastRetrieval: utils.CustomTime{Time: time.Now()},
+		//LastRetrieval: time.Now().Format("20060102 15:04"),
+		Features: features,
 	}
 
-	// Trigger webhook for the INVOKE event using uppercase ISO code.
-	go TriggerWebhookEvent("INVOKE", strings.ToUpper(countryInfo.ISOCode))
+	// Trigger webhooks for INVOKE event
+	services.TriggerWebhookEvent(constants.EventInvoke, countryInfo.ISOCode)
 
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
