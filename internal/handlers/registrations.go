@@ -82,6 +82,9 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.InvalidRegistrationID+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Trigger webhook for the REGISTER event.
+		// The event type is "REGISTER" and we pass the ISO code from the registration.
+		go TriggerWebhookEvent("REGISTER", registration.IsoCode)
 
 		// Return the ID and LastChange time in the response. Confirmation message in JSON for the client.
 		response := map[string]interface{}{
@@ -179,6 +182,16 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
 			return
 		}
+		doc, err := docRef.Get(context.Background())
+		if err != nil {
+			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
+			return
+		}
+		var reg models.Registration
+		if err := doc.DataTo(&reg); err != nil {
+			http.Error(w, "Error deserializing registration: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		// Proceed with deletion
 		_, err = docRef.Delete(context.Background())
@@ -186,6 +199,9 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.DeleteError+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Trigger webhook for the DELETE event.
+		// Pass the ISO code if available; otherwise an empty string.
+		go TriggerWebhookEvent("DELETE", reg.IsoCode)
 
 		// Return a success response
 		response := map[string]interface{}{
@@ -229,6 +245,9 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Trigger webhook for the CHANGE event.
+		// The event type is "CHANGE" and we pass the updated ISO code.
+		go TriggerWebhookEvent("CHANGE", registration.IsoCode)
 
 		// Respond with a confirmation message and the updated registration data.
 		response := map[string]interface{}{
@@ -296,7 +315,7 @@ func ValidateISOCode(country string, isoCode string) error {
 		return fmt.Errorf("invalid ISO code format in API response")
 	}
 
-	// Compare ISO codes, case-insensitively
+	// Compare ISO codes
 	if strings.ToUpper(cca2) != strings.ToUpper(isoCode) {
 		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
 	}

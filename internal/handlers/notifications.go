@@ -4,9 +4,9 @@ import (
 	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
-	"bytes"
 	"context"
 	"encoding/json"
+	"google.golang.org/api/iterator"
 	"log"
 	"net/http"
 	"strings"
@@ -14,7 +14,7 @@ import (
 )
 
 // NotificationsHandler routes requests for /dashboard/v1/notifications/ endpoints.
-func NotificationsHandler(w http.ResponseWriter, r *http.Request) {
+func NotificationHandler(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	// If an ID is provided in the URL, handle GET or DELETE for a specific webhook.
 	if len(parts) > 4 && parts[4] != "" {
@@ -42,30 +42,40 @@ func NotificationsHandler(w http.ResponseWriter, r *http.Request) {
 
 // postNotificationHandler registers a new webhook notification.
 func postNotificationHandler(w http.ResponseWriter, r *http.Request) {
-	var registration models.Registration
-	if err := json.NewDecoder(r.Body).Decode(&registration); err != nil {
-		http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
+	var notification models.Notification
+
+	// Decode request body into Notification struct
+	if err := json.NewDecoder(r.Body).Decode(&notification); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Adds the registration to Firestore.
-	docRef, _, err := firestore.Client.Collection("notifications").Add(context.Background(), registration)
+	// Basic validation
+	if notification.URL == "" || notification.Event == "" {
+		http.Error(w, "Missing required fields: 'url' and 'event'", http.StatusBadRequest)
+		return
+	}
+
+	// Add the webhook notification to Firestore
+	docRef, _, err := firestore.Client.Collection("notifications").Add(context.Background(), notification)
 	if err != nil {
-		http.Error(w, errorMessages.FirestoreError+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to store webhook: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Updates registration with document ID.
-	registration.ID = docRef.ID
-	_, err = docRef.Set(context.Background(), registration)
+	// Set the generated document ID
+	notification.ID = docRef.ID
+
+	// Update the document to include the ID
+	_, err = docRef.Set(context.Background(), notification)
 	if err != nil {
-		http.Error(w, errorMessages.FirestoreError+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to update webhook with ID: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Returns the generated ID.
+	// Return the ID in the response
 	response := map[string]interface{}{
-		"id": registration.ID,
+		"id": notification.ID,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -125,57 +135,78 @@ func deleteNotificationHandler(w http.ResponseWriter, id string) {
 // TriggerWebhookEvent finds all webhook registrations matching the given event and optionally the country
 // and sends a POST notification to the registered URL.
 func TriggerWebhookEvent(event string, country string) {
-	// Query webhooks where event equals the given event.
-	iter := firestore.Client.Collection("notifications").Where("event", "==", event).Documents(context.Background())
+	log.Printf("TriggerWebhookEvent called with event='%s', country='%s'", event, country)
+
+	ctx := context.Background()
+
+	// Make sure we're using uppercase for consistent matching
+	event = strings.ToUpper(event)
+	country = strings.ToUpper(country)
+
+	iter := firestore.Client.Collection("notifications").Where("event", "==", event).Documents(ctx)
 	defer iter.Stop()
+
+	count := 0
 
 	for {
 		doc, err := iter.Next()
-		if err != nil {
+		if err == iterator.Done {
 			break
 		}
-		var reg models.Registration
+		if err != nil {
+			log.Printf("Error iterating webhooks: %v", err)
+			break
+		}
+
+		var reg models.Notification
 		if err = doc.DataTo(&reg); err != nil {
-			log.Printf("Failed to deserialize webhook registration: %v", err)
+			log.Printf("Failed to deserialize webhook registration (id=%s): %v", doc.Ref.ID, err)
 			continue
 		}
-		// If a country is specified in the registration and it doesn't match, skip.
-		if reg.Country != "" && reg.Country != country {
-			continue
+
+		regCountry := strings.ToUpper(reg.Country)
+		if regCountry == "" || regCountry == country {
+			go sendWebhookNotification(reg, event, country)
+			count++
 		}
-		// Prep payload.
-		payload := map[string]string{
-			"id":      reg.ID,
-			"country": country,
-			"event":   event,
-			"time":    time.Now().Format("20060102 15:04"),
-		}
-		// Send the webhook invocation.
-		go sendWebhookNotification(reg.URL, payload)
 	}
+
+	log.Printf("Total webhooks triggered for event='%s' and country='%s': %d", event, country, count)
 }
 
-// sendWebhookNotification sends a POST request with the payload to the provided URL.
-func sendWebhookNotification(url string, payload map[string]string) {
+// sendWebhookNotification sends a POST request with the correct payload to the provided URL.
+func sendWebhookNotification(reg models.Notification, event, country string) {
+	payload := map[string]string{
+		"id":      reg.ID,
+		"country": country,
+		"event":   event,
+		"time":    time.Now().Format("20060102 15:04"),
+	}
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling webhook payload: %v", err)
 		return
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+
+	req, err := http.NewRequest(http.MethodPost, reg.URL, strings.NewReader(string(data)))
 	if err != nil {
-		log.Printf("Error creating webhook request: %v", err)
+		log.Printf("Error creating webhook request to %s: %v", reg.URL, err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error sending webhook to %s: %v", url, err)
+		log.Printf("Error sending webhook to %s: %v", reg.URL, err)
 		return
 	}
 	defer resp.Body.Close()
-	log.Printf("Webhook sent to %s with status code %d", url, resp.StatusCode)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("Webhook URL %s responded with status %d", reg.URL, resp.StatusCode)
+	} else {
+		log.Printf("Webhook sent successfully to %s with status %d", reg.URL, resp.StatusCode)
+	}
 }

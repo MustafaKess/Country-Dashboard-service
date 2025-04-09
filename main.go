@@ -15,7 +15,7 @@ func main() {
 	// Register handlers
 	http.HandleFunc(constants.Registrations, handlers.RegistrationsHandler)
 	http.HandleFunc(constants.Dashboards, handlers.GetPopulatedDashboard)
-	// http.HandleFunc(constants.Notifications, handlers.NotificationHandler)
+	http.HandleFunc(constants.Notifications, handlers.NotificationHandler)
 	http.HandleFunc(constants.Status, handlers.StatusHandler)
 
 	// Log server info

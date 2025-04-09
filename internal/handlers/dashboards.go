@@ -94,6 +94,9 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 		Features:      features,
 	}
 
+	// Trigger webhook for the INVOKE event using uppercase ISO code.
+	go TriggerWebhookEvent("INVOKE", strings.ToUpper(countryInfo.ISOCode))
+
 	// Send response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
