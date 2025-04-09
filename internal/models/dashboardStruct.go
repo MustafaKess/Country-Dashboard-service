@@ -1,5 +1,7 @@
 package models
 
+import "Country-Dashboard-Service/internal/utils"
+
 // Structs for dashboard should be here
 // create new files for structs needed in other places
 
@@ -12,10 +14,11 @@ type DashboardConfig struct {
 
 // Full dashboard response sent to the client with enriched data.
 type PopulatedDashboard struct {
-	Country       string            `json:"country"`
-	ISOCode       string            `json:"isoCode"`
-	Features      DashboardFeatures `json:"features"`
-	LastRetrieval string            `json:"lastRetrieval"`
+	Country  string            `json:"country"`
+	ISOCode  string            `json:"isoCode"`
+	Features DashboardFeatures `json:"features"`
+	//LastRetrieval string            `json:"lastRetrieval"`
+	LastRetrieval utils.CustomTime `json:"lastRetrieval"`
 }
 
 // Contains detailed information shown in the dashboard.

@@ -6,6 +6,7 @@ import (
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
+	"Country-Dashboard-Service/internal/utils"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -75,7 +76,7 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		// Get the document ID and update the registration's LastChange timestamp.
 		id := docR.ID
 		registration.ID = id
-		registration.LastChange = time.Now()
+		registration.LastChange = utils.CustomTime{Time: time.Now()}
 
 		// Update the Firestore document with the registration data.
 		_, err = docR.Set(context.Background(), registration)
@@ -83,6 +84,9 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, errorMessages.InvalidRegistrationID+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Trigger webhook for the REGISTER event.
+		// The event type is "REGISTER" and we pass the ISO code from the registration.
+		services.TriggerWebhookEvent("REGISTER", registration.IsoCode)
 
 		// After successful Firestore write, trigger webhook
 		services.TriggerWebhookEvent(constants.EventRegister, registration.IsoCode)
@@ -240,12 +244,15 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 
 		// Update the Firestore document with the registration data.
 		docR := firestore.Client.Collection("registrations").Doc(id)
-		registration.LastChange = time.Now()
+		registration.LastChange = utils.CustomTime{Time: time.Now()}
 		_, err = docR.Set(context.Background(), registration)
 		if err != nil {
 			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Trigger webhook for the CHANGE event.
+		// The event type is "CHANGE" and we pass the updated ISO code.
+		services.TriggerWebhookEvent("CHANGE", registration.IsoCode)
 
 		// Trigger webhook
 		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)

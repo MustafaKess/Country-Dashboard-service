@@ -22,6 +22,7 @@ func main() {
 	fmt.Println("Starting server on port", constants.Port)
 	fmt.Println("Link to the server status page: http://localhost:8080/dashboard/v1/status")
 	fmt.Println("Link to the registrations page (GET-request ALL): http://localhost:8080/dashboard/v1/registrations")
+	fmt.Println("Link to the Dashboards page (GET-request ALL): http://localhost:8080/dashboard/v1/dashboards")
 
 	// Start the server
 	http.ListenAndServe(constants.Port, nil)
