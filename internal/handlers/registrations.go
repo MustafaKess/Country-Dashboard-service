@@ -134,7 +134,7 @@ func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 	err = doc.DataTo(&reg)
 	if err != nil {
 		// If there's an error deserializing the data, return a 500 error.
-		http.Error(w, "Error with deserialization: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, errorMessages.DeserializationError+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -195,7 +195,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		var reg models.Registration
 		err = docSnap.DataTo(&reg)
 		if err != nil {
-			http.Error(w, "Failed to extract registration data", http.StatusInternalServerError)
+			http.Error(w, errorMessages.ExtractionError, http.StatusInternalServerError)
 			return
 		}
 
@@ -239,7 +239,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 
 		var existing models.Registration
 		if err := docSnap.DataTo(&existing); err != nil {
-			http.Error(w, "Error reading existing registration", http.StatusInternalServerError)
+			http.Error(w, errorMessages.ReadingError, http.StatusInternalServerError)
 			return
 		}
 
@@ -264,7 +264,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 			} else {
 				// If no ISO code provided, ensure it matches the current registration
 				if existing.IsoCode == "" || existing.Country != country {
-					http.Error(w, "ISO code does not match the provided country", http.StatusBadRequest)
+					http.Error(w, errorMessages.IsoCodeDoesNotMatch, http.StatusBadRequest)
 					return
 				}
 			}
@@ -340,11 +340,11 @@ func updateFeaturesFromIncoming(existing models.Features, featuresRaw map[string
 
 func validateRegistration(registration models.Registration) error {
 	if registration.Country == "" {
-		return fmt.Errorf("country name is required")
+		return fmt.Errorf(errorMessages.NoCountryProvided)
 	}
 
 	if registration.IsoCode == "" {
-		return fmt.Errorf("ISO code is required")
+		return fmt.Errorf(errorMessages.IsoRequired)
 	}
 
 	// Delegate ISO code validation to a dedicated function
@@ -354,46 +354,47 @@ func validateRegistration(registration models.Registration) error {
 
 	return nil
 }
-
 func validateISOCode(country string, isoCode string) error {
 	// Build the request URL and perform the HTTP GET request
 	apiURL := fmt.Sprintf(constants.RestCountriesAPI+"/name/%s", country)
 	resp, err := http.Get(apiURL)
 	if err != nil {
-		return fmt.Errorf("failed to validate country with external API: %v", err)
+		return fmt.Errorf("%s: %v", errorMessages.APIFailed, err)
 	}
 	defer resp.Body.Close()
 
 	// Handle specific error for 404 (not found)
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("country '%s' is not recognized", country)
+		return fmt.Errorf("%s: %s", errorMessages.APINotFound, country)
 	}
 	// Generic error for other non-200 responses
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("external API returned unexpected status: %s", resp.Status)
+		return fmt.Errorf("%s: %s", errorMessages.APIUnexpectedStatus, resp.Status)
 	}
+
 	// Decode the JSON response
 	var apiResponse []map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&apiResponse)
 	if err != nil {
 		return fmt.Errorf("failed to decode external API response: %v", err)
 	}
+
 	// Check for data presence and extract cca2
 	if len(apiResponse) == 0 {
-		return fmt.Errorf("no data found for country: %s", country)
+		return fmt.Errorf("%s: %s", errorMessages.NoDataFoundForCountry, country)
 	}
 	cca2Raw, ok := apiResponse[0]["cca2"]
 	if !ok {
-		return fmt.Errorf("ISO code (cca2) not found in API response")
+		return fmt.Errorf("%s: ISO code (cca2) not found in API response", errorMessages.InvalidISOCodeFormat)
 	}
 	cca2, ok := cca2Raw.(string)
 	if !ok {
-		return fmt.Errorf("invalid ISO code format in API response")
+		return fmt.Errorf("%s: invalid ISO code format in API response", errorMessages.InvalidISOCodeFormat)
 	}
 
 	// Compare ISO codes, case-insensitively
 	if !strings.EqualFold(cca2, isoCode) {
-		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
+		return fmt.Errorf("%s: %s", errorMessages.ISOCodeMismatch, fmt.Sprintf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2))
 	}
 
 	return nil
@@ -402,7 +403,7 @@ func validateISOCode(country string, isoCode string) error {
 // validateCountryISO ensures the provided country and ISO code match.
 func validateCountryISO(country, isoCode string) error {
 	if err := validateISOCode(country, isoCode); err != nil {
-		return fmt.Errorf("country and ISO code do not match: %s", err.Error())
+		return fmt.Errorf(errorMessages.IsoCodeDoesNotMatch+" %s", err.Error())
 	}
 	return nil
 }
