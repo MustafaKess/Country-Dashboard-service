@@ -4,6 +4,7 @@ import (
 	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
+	"Country-Dashboard-Service/internal/utils"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -17,7 +18,7 @@ func insertTestRegistration(t *testing.T) string {
 	reg := models.Registration{
 		Country:    "Norway",
 		IsoCode:    "NO",
-		LastChange: time.Now(),
+		LastChange: utils.CustomTime{Time: time.Now()},
 		Features: models.Features{
 			Temperature:      true,
 			Precipitation:    true,

@@ -5,6 +5,7 @@ import (
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
+	"Country-Dashboard-Service/internal/utils"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -96,7 +97,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	response := models.PopulatedDashboard{
 		Country:       countryInfo.Name,
 		ISOCode:       countryInfo.ISOCode,
-		LastRetrieval: time.Now().Format("20060102 15:04"),
+		LastRetrieval: utils.CustomTime{Time: time.Now()},
 		Features:      features,
 	}
 
