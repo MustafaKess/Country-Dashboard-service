@@ -1,7 +1,7 @@
 package models
 
 import (
-	"time"
+	"Country-Dashboard-Service/internal/utils"
 )
 
 // Features struct holds the options for the dashboard's configuration
@@ -17,10 +17,10 @@ type Features struct {
 
 // Registration represents the configuration of a registered dashboard
 type Registration struct {
-	ID         string    `json:"id,omitempty" firestore:"id,omitempty"` // Unique identifier for the configuration
-	Country    string    `json:"country" firestore:"country"`           // Country name (alternatively to ISO code)
-	IsoCode    string    `json:"isoCode" firestore:"iso_code"`          // ISO 2-letter code for the country
-	Features   Features  `json:"features" firestore:"features"`         // Features to be displayed on the dashboard
-	LastChange time.Time `json:"lastChange" firestore:"last_change"`    // Timestamp of the last change
-	URL        string    `json:"url" firestore:"url"`
+	ID         string           `json:"id,omitempty" firestore:"id,omitempty"` // Unique identifier for the configuration
+	Country    string           `json:"country" firestore:"country"`           // Country name (alternatively to ISO code)
+	IsoCode    string           `json:"isoCode" firestore:"iso_code"`          // ISO 2-letter code for the country
+	Features   Features         `json:"features" firestore:"features"`         // Features to be displayed on the dashboard
+	LastChange utils.CustomTime `json:"lastChange" firestore:"last_change"`    // Timestamp of the last change
+	//URL        string           `json:"url" firestore:"url"`
 }
