@@ -50,7 +50,7 @@ func validRegistrationPayload() []byte {
 }
 
 func TestPostValidRegistration(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	closeMock := startMockCountryAPI(t, "NO")
 	defer closeMock()
@@ -70,7 +70,7 @@ func TestPostValidRegistration(t *testing.T) {
 }
 
 func TestPostInvalidJSON(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, constants.Registrations, bytes.NewReader([]byte(`invalid-json`)))
 	w := httptest.NewRecorder()
@@ -83,7 +83,7 @@ func TestPostInvalidJSON(t *testing.T) {
 }
 
 func TestPostInvalidISO(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	closeMock := startMockCountryAPI(t, "SE") // Mismatched ISO
 	defer closeMock()
@@ -105,7 +105,7 @@ func TestPostInvalidISO(t *testing.T) {
 }
 
 func TestGetAllRegistrations(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, constants.Registrations, nil)
 	w := httptest.NewRecorder()
@@ -118,7 +118,7 @@ func TestGetAllRegistrations(t *testing.T) {
 }
 
 func TestInvalidMethod(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPatch, constants.Registrations, nil)
 	w := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestInvalidMethod(t *testing.T) {
 }
 
 func TestPutRegistration_ValidUpdate(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	closeMock := startMockCountryAPI(t, "NO")
 	defer closeMock()
@@ -174,7 +174,7 @@ func TestPutRegistration_ValidUpdate(t *testing.T) {
 }
 
 func TestPutRegistration_MissingID(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	payload := validRegistrationPayload()
 	req := httptest.NewRequest(http.MethodPut, constants.Registrations, bytes.NewReader(payload))
@@ -188,7 +188,7 @@ func TestPutRegistration_MissingID(t *testing.T) {
 }
 
 func TestPutRegistration_InvalidJSON(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	id := insertTestRegistration(t)
 
@@ -203,7 +203,7 @@ func TestPutRegistration_InvalidJSON(t *testing.T) {
 }
 
 func TestPutRegistration_NonExistentID(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	closeMock := startMockCountryAPI(t, "NO")
 	defer closeMock()
@@ -231,22 +231,13 @@ func TestPutRegistration_NonExistentID(t *testing.T) {
 
 	RegistrationsHandler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK even for non-existent ID (upsert), got %d", w.Code)
-		return
-	}
-
-	var resp map[string]interface{}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-	if resp["message"] != "Registration updated successfully" {
-		t.Errorf("Unexpected message: %v", resp["message"])
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found for non-existent ID, got %d", w.Code)
 	}
 }
 
 func TestDeleteRegistration_AlreadyDeleted(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	id := insertTestRegistration(t)
 
@@ -268,7 +259,7 @@ func TestDeleteRegistration_AlreadyDeleted(t *testing.T) {
 }
 
 func TestGetSpecificRegistration(t *testing.T) {
-	t.Parallel()
+	//t.Parallel()
 
 	id := insertTestRegistration(t)
 

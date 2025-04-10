@@ -60,7 +60,8 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := ValidateRegistration(registration); err != nil {
+		// Validate the registration's name and ISO code.
+		if err := validateRegistration(registration); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -133,7 +134,7 @@ func getSpecifiedRegistration(w http.ResponseWriter, id string) {
 	err = doc.DataTo(&reg)
 	if err != nil {
 		// If there's an error deserializing the data, return a 500 error.
-		http.Error(w, "Error with deserialization: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, errorMessages.DeserializationError+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -194,7 +195,7 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 		var reg models.Registration
 		err = docSnap.DataTo(&reg)
 		if err != nil {
-			http.Error(w, "Failed to extract registration data", http.StatusInternalServerError)
+			http.Error(w, errorMessages.ExtractionError, http.StatusInternalServerError)
 			return
 		}
 
@@ -224,116 +225,186 @@ func deleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 // putRegistration updates an existing registration in Firestore.
 func putRegistration(w http.ResponseWriter, r *http.Request) {
-	// Extract the registration ID from the URL path
 	parts := strings.Split(r.URL.Path, "/")
-
-	// Check if an ID exists after "/dashboard/v1/registrations/"
 	if len(parts) > 4 && parts[4] != "" {
-		// If ID is provided, update the specific registration.
 		id := parts[4]
 
-		// Define a variable to hold the updated registration data.
-		var registration models.Registration
-
-		// Decode the incoming JSON data into the registration model.
-		err := json.NewDecoder(r.Body).Decode(&registration)
+		// Fetch current registration from Firestore
+		docRef := firestore.Client.Collection("registrations").Doc(id)
+		docSnap, err := docRef.Get(context.Background())
 		if err != nil {
+			http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
+			return
+		}
+
+		var existing models.Registration
+		if err := docSnap.DataTo(&existing); err != nil {
+			http.Error(w, errorMessages.ReadingError, http.StatusInternalServerError)
+			return
+		}
+
+		// Decode request body into a map to allow partial updates
+		var incoming map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
 			http.Error(w, errorMessages.InvalidJSON, http.StatusBadRequest)
 			return
 		}
 
-		// Validate the input (country + ISO code)
-		if err := ValidateRegistration(registration); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		// Handle country and ISO code
+		if country, ok := incoming["country"].(string); ok && country != "" {
+			// Update country if provided
+			existing.Country = country
+			// If ISO code is also provided, validate it
+			if isoCode, ok := incoming["isoCode"].(string); ok && isoCode != "" {
+				if err := validateCountryISO(country, isoCode); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				existing.IsoCode = isoCode // Update ISO code if provided
+			} else {
+				// If no ISO code provided, ensure it matches the current registration
+				if existing.IsoCode == "" || existing.Country != country {
+					http.Error(w, errorMessages.IsoCodeDoesNotMatch, http.StatusBadRequest)
+					return
+				}
+			}
+		} else if isoCode, ok := incoming["isoCode"].(string); ok && isoCode != "" {
+			// Only ISO code is provided, validate it
+			if err := validateISOCode(existing.Country, isoCode); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			existing.IsoCode = isoCode // Update ISO code
 		}
 
-		// Update the Firestore document with the registration data.
-		docR := firestore.Client.Collection("registrations").Doc(id)
-		registration.LastChange = utils.CustomTime{Time: time.Now()}
-		_, err = docR.Set(context.Background(), registration)
-		if err != nil {
+		// Update features if present in the request
+		if featuresRaw, ok := incoming["features"].(map[string]interface{}); ok {
+			existing.Features = updateFeaturesFromIncoming(existing.Features, featuresRaw)
+		}
+
+		// Update LastChange timestamp
+		existing.LastChange = utils.CustomTime{Time: time.Now()}
+
+		// Write updated registration to Firestore
+		if _, err := docRef.Set(context.Background(), existing); err != nil {
 			http.Error(w, errorMessages.UpdateError+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// Trigger webhook for the CHANGE event.
-		// The event type is "CHANGE" and we pass the updated ISO code.
-		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
 
-		// Trigger webhook
-		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
+		// Trigger webhook for the change event
+		services.TriggerWebhookEvent(constants.EventChange, existing.IsoCode)
 
-		// Respond with a confirmation message and the updated registration data.
+		// Respond with updated data
 		response := map[string]interface{}{
 			"message":     "Registration updated successfully",
-			"updatedData": registration,
+			"updatedData": existing,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
+
 	} else {
-		// If no ID is provided, return a 400 error.
 		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 	}
 }
 
-func ValidateRegistration(registration models.Registration) error {
+func updateFeaturesFromIncoming(existing models.Features, featuresRaw map[string]interface{}) models.Features {
+	if val, ok := featuresRaw["temperature"].(bool); ok {
+		existing.Temperature = val
+	}
+	if val, ok := featuresRaw["precipitation"].(bool); ok {
+		existing.Precipitation = val
+	}
+	if val, ok := featuresRaw["capital"].(bool); ok {
+		existing.Capital = val
+	}
+	if val, ok := featuresRaw["coordinates"].(bool); ok {
+		existing.Coordinates = val
+	}
+	if val, ok := featuresRaw["population"].(bool); ok {
+		existing.Population = val
+	}
+	if val, ok := featuresRaw["area"].(bool); ok {
+		existing.Area = val
+	}
+	if val, ok := featuresRaw["targetCurrencies"].([]interface{}); ok {
+		var currencies []string
+		for _, v := range val {
+			if s, ok := v.(string); ok {
+				currencies = append(currencies, s)
+			}
+		}
+		existing.TargetCurrencies = currencies
+	}
+	return existing
+}
+
+func validateRegistration(registration models.Registration) error {
 	if registration.Country == "" {
-		return fmt.Errorf("country name is required")
+		return fmt.Errorf(errorMessages.NoCountryProvided)
 	}
 
 	if registration.IsoCode == "" {
-		return fmt.Errorf("ISO code is required")
+		return fmt.Errorf(errorMessages.IsoRequired)
 	}
 
 	// Delegate ISO code validation to a dedicated function
-	if err := ValidateISOCode(registration.Country, registration.IsoCode); err != nil {
+	if err := validateISOCode(registration.Country, registration.IsoCode); err != nil {
 		return err
 	}
 
 	return nil
 }
-
-func ValidateISOCode(country string, isoCode string) error {
+func validateISOCode(country string, isoCode string) error {
 	// Build the request URL and perform the HTTP GET request
 	apiURL := fmt.Sprintf(constants.RestCountriesAPI+"/name/%s", country)
 	fmt.Println("VALIDATING AGAINST:", apiURL) // DEBUG LINE
 	resp, err := http.Get(apiURL)
 	if err != nil {
-		return fmt.Errorf("failed to validate country with external API: %v", err)
+		return fmt.Errorf("%s: %v", errorMessages.APIFailed, err)
 	}
 	defer resp.Body.Close()
 
 	// Handle specific error for 404 (not found)
 	if resp.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("country '%s' is not recognized", country)
+		return fmt.Errorf("%s: %s", errorMessages.APINotFound, country)
 	}
 	// Generic error for other non-200 responses
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("external API returned unexpected status: %s", resp.Status)
+		return fmt.Errorf("%s: %s", errorMessages.APIUnexpectedStatus, resp.Status)
 	}
+
 	// Decode the JSON response
 	var apiResponse []map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&apiResponse)
 	if err != nil {
 		return fmt.Errorf("failed to decode external API response: %v", err)
 	}
+
 	// Check for data presence and extract cca2
 	if len(apiResponse) == 0 {
-		return fmt.Errorf("no data found for country: %s", country)
+		return fmt.Errorf("%s: %s", errorMessages.NoDataFoundForCountry, country)
 	}
 	cca2Raw, ok := apiResponse[0]["cca2"]
 	if !ok {
-		return fmt.Errorf("ISO code (cca2) not found in API response")
+		return fmt.Errorf("%s: ISO code (cca2) not found in API response", errorMessages.InvalidISOCodeFormat)
 	}
 	cca2, ok := cca2Raw.(string)
 	if !ok {
-		return fmt.Errorf("invalid ISO code format in API response")
+		return fmt.Errorf("%s: invalid ISO code format in API response", errorMessages.InvalidISOCodeFormat)
 	}
 
 	// Compare ISO codes, case-insensitively
 	if !strings.EqualFold(cca2, isoCode) {
-		return fmt.Errorf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2)
+		return fmt.Errorf("%s: %s", errorMessages.ISOCodeMismatch, fmt.Sprintf("ISO code '%s' does not match country '%s' (expected '%s')", isoCode, country, cca2))
 	}
 
+	return nil
+}
+
+// validateCountryISO ensures the provided country and ISO code match.
+func validateCountryISO(country, isoCode string) error {
+	if err := validateISOCode(country, isoCode); err != nil {
+		return fmt.Errorf(errorMessages.IsoCodeDoesNotMatch+" %s", err.Error())
+	}
 	return nil
 }
