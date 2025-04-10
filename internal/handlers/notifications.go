@@ -78,7 +78,7 @@ func getSpecificNotificationHandler(w http.ResponseWriter, id string) {
 	}
 	var webhook models.WebhookRegistration
 	if err = doc.DataTo(&webhook); err != nil {
-		http.Error(w, "Error deserializing data: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, errorMessages.DeserializationError+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -123,7 +123,7 @@ func deleteNotificationHandler(w http.ResponseWriter, id string) {
 	}
 
 	response := map[string]interface{}{
-		"message": "Notification deleted successfully",
+		"message": errorMessages.NotificationDeleted,
 		"id":      id,
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"Country-Dashboard-Service/constants"
+	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"encoding/json"
 	"fmt"
@@ -44,7 +45,7 @@ func StatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uptime := time.Now().Unix() - serviceStartTime
-	version := "v1"
+	version := constants.APIVersion
 
 	statusResponse := struct {
 		RestCountriesAPI string `json:"restCountriesApi"`
@@ -66,7 +67,7 @@ func StatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(statusResponse); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		http.Error(w, errorMessages.StatusEncodeError, http.StatusInternalServerError)
 	}
 }
 

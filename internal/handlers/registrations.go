@@ -87,7 +87,7 @@ func postRegistrationsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// Trigger webhook for the REGISTER event.
 		// The event type is "REGISTER" and we pass the ISO code from the registration.
-		services.TriggerWebhookEvent("REGISTER", registration.IsoCode)
+		services.TriggerWebhookEvent(constants.EventRegister, registration.IsoCode)
 
 		// After successful Firestore write, trigger webhook
 		services.TriggerWebhookEvent(constants.EventRegister, registration.IsoCode)
