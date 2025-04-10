@@ -1,28 +1,35 @@
 package main
 
 import (
-	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/firestore"
-	"Country-Dashboard-Service/internal/handlers"
-	"net/http"
+	"Country-Dashboard-Service/internal/server"
+	serverWebhook "Country-Dashboard-Service/internal/serverwebhook"
+	"fmt"
+	"log"
 )
 
+/*
+Main entry point for the application.
+Initializes Firestore, starts the primary HTTP server, and optionally runs the dedicated webhook server.
+This service provides dashboard configurations, enriched dashboards, and webhook notifications.
+*/
 func main() {
-	// Initialize Firestore before any requests are handled
+	// Initialize Firestore before processing any requests.
 	firestore.InitFirestore()
 
-	// Register handlers
-	http.HandleFunc(constants.Registrations, handlers.RegistrationsHandler)
-	http.HandleFunc(constants.Dashboards, handlers.GetPopulatedDashboard)
-	http.HandleFunc(constants.Notifications, handlers.NotificationsHandler)
-	http.HandleFunc(constants.Status, handlers.StatusHandler)
+	// Create the primary server.
+	srv := server.NewServer(":8080")
+	// Start the primary server in a separate goroutine.
+	go srv.Start()
 
-	// Log server info
-	//fmt.Println("Starting server on port", constants.Port)
-	//fmt.Println("Link to the server status page: http://localhost:8080/dashboard/v1/status")
-	//fmt.Println("Link to the registrations page (GET-request ALL): http://localhost:8080/dashboard/v1/registrations")
-	//fmt.Println("Link to the Dashboards page (GET-request ALL): http://localhost:8080/dashboard/v1/dashboards")
+	// Optionally, start the dedicated webhook server for receiving webhook invocations.
+	go serverWebhook.Start()
 
-	// Start the server
-	http.ListenAndServe(constants.Port, nil)
+	log.Println("Server is running...")
+	fmt.Println("Server status page: http://localhost:8080/dashboard/v1/status")
+	fmt.Println("Registrations page (GET all): http://localhost:8080/dashboard/v1/registrations")
+	fmt.Println("Dashboards page (GET all): http://localhost:8080/dashboard/v1/dashboards")
+
+	// Block forever (or implement a proper shutdown signal handler).
+	select {}
 }
