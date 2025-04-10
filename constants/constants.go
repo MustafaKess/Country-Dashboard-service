@@ -3,7 +3,7 @@ package constants
 const (
 	Port       = ":8080"
 	APIVersion = "v1"
-	BaseAPI    = "/dashboard" + APIVersion
+	BaseAPI    = "/dashboard/" + APIVersion
 
 	// Local endpoints
 	Registrations = BaseAPI + "/registrations/"
