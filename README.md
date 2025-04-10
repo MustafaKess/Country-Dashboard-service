@@ -2,6 +2,11 @@
 ### Course: PROG2005 - Cloud Technologies  
 <br>
 
+> FOR PEER REVIVERS: <BR>
+> We are unsure if the link supplied in the submission system is right
+> But a link to the docker instence should be: <br> 10.212.174.141:8080/dashboard/v1/ <br>
+> You can test functionalities there. 
+
 ## Overview  
 In this group assignment, we are going to develop a REST web application in Golang that provides the client with the ability to configure information dashboards that are dynamically populated when requested. The dashboard configurations are saved persistently in a remote database and populated based on external services.  
 
