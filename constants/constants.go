@@ -1,8 +1,9 @@
 package constants
 
 const (
-	Port    = ":8080"
-	BaseAPI = "/dashboard/v1"
+	Port       = ":8080"
+	APIVersion = "v1"
+	BaseAPI    = "/dashboard" + APIVersion
 
 	// Local endpoints
 	Registrations = BaseAPI + "/registrations/"
@@ -15,6 +16,14 @@ const (
 	EventChange   = "CHANGE"
 	EventDelete   = "DELETE"
 	EventInvoke   = "INVOKE"
+
+	// Firestore project and file config
+	FirebaseProjectID    = "demo-test-project"
+	ServiceAccountJSON   = ".env/firebaseKey.json"
+	DefaultEmulatorHost  = "localhost:8080"
+	EnvFirestoreEmulator = "FIRESTORE_EMULATOR_HOST"
+	EnvGoEnv             = "GO_ENV"
+	EnvGoEnvTestValue    = "test"
 )
 
 var (

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"bytes"
@@ -25,7 +26,7 @@ func TriggerWebhookEvent(event string, country string) {
 		}
 		var entry models.WebhookRegistration
 		if err = doc.DataTo(&entry); err != nil {
-			log.Printf("Failed to deserialize webhook registration: %v", err)
+			log.Printf(errorMessages.FailedWebhookDeserialization, err)
 			continue
 		}
 		// If a country is specified in the registration and it doesn't match, skip.
@@ -48,12 +49,12 @@ func TriggerWebhookEvent(event string, country string) {
 func sendWebhookNotification(url string, payload map[string]string) {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Error marshalling webhook payload: %v", err)
+		log.Printf(errorMessages.WebhookPayloadMarshallingError, err)
 		return
 	}
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
 	if err != nil {
-		log.Printf("Error creating webhook request: %v", err)
+		log.Printf(errorMessages.WebhookRequestCreationError, err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -62,7 +63,7 @@ func sendWebhookNotification(url string, payload map[string]string) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error sending webhook to %s: %v", url, err)
+		log.Printf(errorMessages.WebhookSendError, url, err)
 		return
 	}
 	defer resp.Body.Close()

@@ -1,12 +1,13 @@
 package firestore
 
 import (
+	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/models"
 	"context"
 	"errors"
 )
 
-var ErrConfigNotFound = errors.New("dashboard config not found")
+var ErrConfigNotFound = errors.New(errorMessages.DashboardConfigNotFound)
 
 // GetDashboardConfigByID retrieves the dashboard config with the given ID from Firestore.
 func GetDashboardConfigByID(id string) (*models.Registration, error) {

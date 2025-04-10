@@ -1,6 +1,8 @@
 package firestore
 
 import (
+	"Country-Dashboard-Service/constants"
+	"Country-Dashboard-Service/constants/errorMessages"
 	"context"
 	"log"
 	"os"
@@ -26,30 +28,30 @@ func InitFirestore() {
 	Ctx = context.Background()
 
 	// Use emulator if FIRESTORE_EMULATOR_HOST is set or default to it during testing
-	if os.Getenv("FIRESTORE_EMULATOR_HOST") != "" || os.Getenv("GO_ENV") == "test" {
-		if os.Getenv("FIRESTORE_EMULATOR_HOST") == "" {
-			os.Setenv("FIRESTORE_EMULATOR_HOST", "localhost:8080")
+	if os.Getenv(constants.EnvFirestoreEmulator) != "" || os.Getenv(constants.EnvGoEnv) == constants.EnvGoEnvTestValue {
+		if os.Getenv(constants.EnvFirestoreEmulator) == "" {
+			os.Setenv(constants.EnvFirestoreEmulator, constants.DefaultEmulatorHost)
 		}
 
-		client, err := firestore.NewClient(Ctx, "demo-test-project", option.WithoutAuthentication())
+		client, err := firestore.NewClient(Ctx, constants.FirebaseProjectID, option.WithoutAuthentication())
 		if err != nil {
-			log.Fatalf("Failed to create Firestore client (emulator): %v", err)
+			log.Fatalf(errorMessages.FirestoreClientEmulatorError + err.Error())
 		}
 		Client = client
 		return
 	}
 
 	// Otherwise, use real Firebase service account
-	serviceAccount := option.WithCredentialsFile(".env/firebaseKey.json")
+	serviceAccount := option.WithCredentialsFile(constants.ServiceAccountJSON)
 
 	app, err := firebase.NewApp(Ctx, nil, serviceAccount)
 	if err != nil {
-		log.Fatalf("Could not initialize Firebase app: %v", err)
+		log.Fatalf(errorMessages.FirebaseAppInitError + err.Error())
 	}
 
 	Client, err = app.Firestore(Ctx)
 	if err != nil {
-		log.Fatalf("Could not initialize Firestore client: %v", err)
+		log.Fatalf(errorMessages.FirestoreClientInitError + err.Error())
 	}
 
 	// Log successful Firestore initialization, mostly for myself for checking if all is good.
