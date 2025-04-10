@@ -2,9 +2,6 @@ package models
 
 import "Country-Dashboard-Service/internal/utils"
 
-// Structs for dashboard should be here
-// create new files for structs needed in other places
-
 // Represents a saved dashboard setup with a country and target currencies.
 type DashboardConfig struct {
 	ID               string   `json:"id"`
@@ -14,22 +11,21 @@ type DashboardConfig struct {
 
 // Full dashboard response sent to the client with enriched data.
 type PopulatedDashboard struct {
-	Country  string            `json:"country"`
-	ISOCode  string            `json:"isoCode"`
-	Features DashboardFeatures `json:"features"`
-	//LastRetrieval string            `json:"lastRetrieval"`
-	LastRetrieval utils.CustomTime `json:"lastRetrieval"`
+	Country       string            `json:"country"`
+	ISOCode       string            `json:"isoCode"`
+	Features      DashboardFeatures `json:"features"`
+	LastRetrieval utils.CustomTime  `json:"lastRetrieval"`
 }
 
 // Contains detailed information shown in the dashboard.
 type DashboardFeatures struct {
-	Temperature      float64            `json:"temperature"`
-	Precipitation    float64            `json:"precipitation"`
-	Capital          string             `json:"capital"`
-	Coordinates      Coordinates        `json:"coordinates"`
-	Population       int                `json:"population"`
-	Area             float64            `json:"area"`
-	TargetCurrencies map[string]float64 `json:"targetCurrencies"`
+	Temperature      float64            `json:"temperature,omitempty"`      // Exclude if zero
+	Precipitation    float64            `json:"precipitation,omitempty"`    // Exclude if zero
+	Capital          string             `json:"capital,omitempty"`          // Exclude if empty
+	Coordinates      Coordinates        `json:"coordinates,omitempty"`      // Exclude if zero
+	Population       int                `json:"population,omitempty"`       // Exclude if zero
+	Area             float64            `json:"area,omitempty"`             // Exclude if zero
+	TargetCurrencies map[string]float64 `json:"targetCurrencies,omitempty"` // Exclude if empty
 }
 
 // Holds latitude and longitude values for a country.

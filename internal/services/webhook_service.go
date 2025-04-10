@@ -11,10 +11,12 @@ import (
 	"time"
 )
 
-// TriggerWebhookEvent finds all webhook registrations matching the given event and optionally the country
-// and sends a POST notification to the registered URL.
+/*
+TriggerWebhookEvent finds all webhook registrations matching the specified event and optionally the country,
+and sends a POST notification to each registered URL asynchronously.
+This function is used to notify external services when events occur.
+*/
 func TriggerWebhookEvent(event string, country string) {
-	// Query webhooks where event equals the given event.
 	iter := firestore.Client.Collection("notifications").Where("event", "==", event).Documents(context.Background())
 	defer iter.Stop()
 
@@ -28,23 +30,21 @@ func TriggerWebhookEvent(event string, country string) {
 			log.Printf("Failed to deserialize webhook registration: %v", err)
 			continue
 		}
-		// If a country is specified in the registration and it doesn't match, skip.
+		// If a specific country is set and it doesn't match, skip this registration.
 		if entry.Country != "" && entry.Country != country {
 			continue
 		}
-		// Prep payload.
 		payload := map[string]string{
 			"id":      entry.ID,
 			"country": country,
 			"event":   event,
 			"time":    time.Now().Format("20060102 15:04"),
 		}
-		// Send the webhook invocation.
+		// Send the webhook notification asynchronously.
 		go sendWebhookNotification(entry.URL, payload)
 	}
 }
 
-// sendWebhookNotification sends a POST request with the payload to the provided URL.
 func sendWebhookNotification(url string, payload map[string]string) {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -57,9 +57,7 @@ func sendWebhookNotification(url string, payload map[string]string) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Error sending webhook to %s: %v", url, err)

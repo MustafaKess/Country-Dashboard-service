@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"Country-Dashboard-Service/constants"
+	"Country-Dashboard-Service/constants/errorMessages"
 	"Country-Dashboard-Service/internal/firestore"
 	"Country-Dashboard-Service/internal/models"
 	"Country-Dashboard-Service/internal/services"
 	"Country-Dashboard-Service/internal/utils"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -17,7 +19,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	// Extract ID from URL path
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 || parts[4] == "" {
-		http.Error(w, "Missing dashboard ID", http.StatusBadRequest)
+		http.Error(w, errorMessages.NoIDProvided, http.StatusBadRequest)
 		return
 	}
 	id := parts[4]
@@ -25,14 +27,16 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	// Load full registration (from Firestore)
 	config, err := firestore.GetDashboardConfigByID(id)
 	if err != nil {
-		http.Error(w, "Dashboard config not found", http.StatusNotFound)
+		fmt.Println("Failed to get dashboard config:", err) // Debug
+		http.Error(w, errorMessages.RegisterNotFound, http.StatusNotFound)
 		return
 	}
 
 	// Get country data
 	countryInfo, err := services.GetCountryInfo(config.Country)
 	if err != nil {
-		http.Error(w, "Failed to fetch country data", http.StatusBadGateway)
+		fmt.Println("Failed to fetch country data:", err) // Debug
+		http.Error(w, errorMessages.CountryNotRecognized, http.StatusBadGateway)
 		return
 	}
 
@@ -42,7 +46,8 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	if config.Features.Temperature || config.Features.Precipitation {
 		temp, precip, err := services.GetWeatherData(countryInfo.Latitude, countryInfo.Longitude)
 		if err != nil {
-			http.Error(w, "Failed to fetch weather data", http.StatusBadGateway)
+			fmt.Println("Failed to fetch weather data:", err) // Debug
+			http.Error(w, errorMessages.APIFailed, http.StatusBadGateway)
 			return
 		}
 		temperature = temp
@@ -54,7 +59,8 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 	if len(config.Features.TargetCurrencies) > 0 {
 		rates, err := services.GetExchangeRates(countryInfo.Currency, config.Features.TargetCurrencies)
 		if err != nil {
-			http.Error(w, "Failed to fetch currency data", http.StatusBadGateway)
+			fmt.Println("Failed to fetch currency data:", err) // Debug
+			http.Error(w, errorMessages.APIFailed, http.StatusBadGateway)
 			return
 		}
 		targetCurrencies = rates
@@ -93,8 +99,7 @@ func GetPopulatedDashboard(w http.ResponseWriter, r *http.Request) {
 		Country:       countryInfo.Name,
 		ISOCode:       countryInfo.ISOCode,
 		LastRetrieval: utils.CustomTime{Time: time.Now()},
-		//LastRetrieval: time.Now().Format("20060102 15:04"),
-		Features: features,
+		Features:      features,
 	}
 
 	// Trigger webhooks for INVOKE event
