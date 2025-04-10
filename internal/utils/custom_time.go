@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// CustomTime wraps time.Time to allow custom JSON formatting
+// CustomTime wraps time.Time to allow custom JSON formatting.
 type CustomTime struct {
 	time.Time
 }
