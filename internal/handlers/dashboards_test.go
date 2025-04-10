@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -40,15 +41,17 @@ func insertTestRegistration(t *testing.T) string {
 func TestGetPopulatedDashboard(t *testing.T) {
 	// Set up mock REST Countries API
 	mockCountries := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := `[{
-			"name": { "common": "Norway" },
-			"capital": ["Oslo"],
-			"latlng": [60.0, 10.0],
-			"population": 5000000,
-			"area": 385207,
-			"currencies": { "NOK": { "name": "Norwegian krone" } },
-			"cca2": "NO"
-		}]`
+		resp := `[
+			{
+				"name": { "common": "Norway" },
+				"capital": ["Oslo"],
+				"latlng": [60.0, 10.0],
+				"population": 5000000,
+				"area": 385207,
+				"currencies": { "NOK": { "name": "Norwegian krone" } },
+				"cca2": "NO"
+			}
+		]`
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(resp))
 	}))
@@ -108,14 +111,23 @@ func TestGetPopulatedDashboard(t *testing.T) {
 		t.Fatalf("Expected 200 OK, got %d", res.StatusCode)
 	}
 
-	var dashboard models.PopulatedDashboard
-	if err := json.NewDecoder(res.Body).Decode(&dashboard); err != nil {
+	var raw map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&raw); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	// Validate that the dashboard returned has the correct data
-	if dashboard.Country != "Norway" || dashboard.Features.Capital != "Oslo" {
-		t.Errorf("Expected capital Oslo and country Norway, got %v", dashboard)
+	retrieval, ok := raw["lastRetrieval"].(string)
+	if !ok || (!strings.Contains(retrieval, "CEST") && !strings.Contains(retrieval, "CET")) {
+		t.Errorf("Expected lastRetrieval with CEST/CET timezone, got: %v", retrieval)
+	}
+
+	if raw["country"] != "Norway" {
+		t.Errorf("Expected country Norway, got %v", raw["country"])
+	}
+
+	features, ok := raw["features"].(map[string]interface{})
+	if !ok || features["capital"] != "Oslo" {
+		t.Errorf("Expected capital Oslo, got %v", features["capital"])
 	}
 }
 

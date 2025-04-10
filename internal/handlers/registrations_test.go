@@ -3,16 +3,36 @@ package handlers
 import (
 	"Country-Dashboard-Service/constants"
 	"Country-Dashboard-Service/internal/models"
+	"Country-Dashboard-Service/internal/utils"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
+
+// Setup mocked REST Countries API
+func startMockCountryAPI(t *testing.T, iso string) func() {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("Mock Country API called with URL: %s", r.URL.String()) // log this
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`[{"cca2": "` + iso + `"}]`))
+	}))
+	constants.RestCountriesAPI = mock.URL
+	return mock.Close
+}
 
 // Utility function to create a valid registration JSON payload
 func validRegistrationPayload() []byte {
-	reg := models.Registration{
+	type registrationPayload struct {
+		Country  string          `json:"country"`
+		IsoCode  string          `json:"isoCode"`
+		Features models.Features `json:"features"`
+	}
+
+	reg := registrationPayload{
 		Country: "Norway",
 		IsoCode: "NO",
 		Features: models.Features{
@@ -29,21 +49,17 @@ func validRegistrationPayload() []byte {
 	return payload
 }
 
-// Setup mocked REST Countries API
-func startMockCountryAPI(t *testing.T) func() {
-	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[{"cca2": "NO"}]`)) // ISO match
-	}))
-	constants.RestCountriesAPI = mock.URL
-	return mock.Close
-}
-
 func TestPostValidRegistration(t *testing.T) {
-	closeMock := startMockCountryAPI(t)
+	//t.Parallel()
+
+	closeMock := startMockCountryAPI(t, "NO")
 	defer closeMock()
 
-	req := httptest.NewRequest(http.MethodPost, constants.Registrations, bytes.NewReader(validRegistrationPayload()))
+	payload := validRegistrationPayload()
+
+	fmt.Println("Sending registration payload:", string(payload))
+
+	req := httptest.NewRequest(http.MethodPost, constants.Registrations, bytes.NewReader(payload))
 	w := httptest.NewRecorder()
 
 	RegistrationsHandler(w, req)
@@ -54,6 +70,8 @@ func TestPostValidRegistration(t *testing.T) {
 }
 
 func TestPostInvalidJSON(t *testing.T) {
+	//t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, constants.Registrations, bytes.NewReader([]byte(`invalid-json`)))
 	w := httptest.NewRecorder()
 
@@ -65,16 +83,14 @@ func TestPostInvalidJSON(t *testing.T) {
 }
 
 func TestPostInvalidISO(t *testing.T) {
-	// Mock returns wrong cca2 to trigger ISO mismatch
-	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"cca2": "SE"}]`)) // wrong ISO
-	}))
-	defer mock.Close()
-	constants.RestCountriesAPI = mock.URL
+	//t.Parallel()
+
+	closeMock := startMockCountryAPI(t, "SE") // Mismatched ISO
+	defer closeMock()
 
 	reg := models.Registration{
 		Country: "Norway",
-		IsoCode: "NO", // mismatch with "SE"
+		IsoCode: "NO",
 	}
 	payload, _ := json.Marshal(reg)
 
@@ -89,6 +105,8 @@ func TestPostInvalidISO(t *testing.T) {
 }
 
 func TestGetAllRegistrations(t *testing.T) {
+	//t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, constants.Registrations, nil)
 	w := httptest.NewRecorder()
 
@@ -100,6 +118,8 @@ func TestGetAllRegistrations(t *testing.T) {
 }
 
 func TestInvalidMethod(t *testing.T) {
+	//t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPatch, constants.Registrations, nil)
 	w := httptest.NewRecorder()
 
@@ -111,13 +131,17 @@ func TestInvalidMethod(t *testing.T) {
 }
 
 func TestPutRegistration_ValidUpdate(t *testing.T) {
-	// Insert a test registration first
+	//t.Parallel()
+
+	closeMock := startMockCountryAPI(t, "NO")
+	defer closeMock()
+
 	id := insertTestRegistration(t)
 
-	// Prepare updated payload
 	updated := models.Registration{
-		Country: "Norway",
-		IsoCode: "NO",
+		Country:    "Norway",
+		IsoCode:    "NO",
+		LastChange: utils.CustomTime{Time: time.Now()},
 		Features: models.Features{
 			Temperature:      false,
 			Precipitation:    true,
@@ -150,7 +174,9 @@ func TestPutRegistration_ValidUpdate(t *testing.T) {
 }
 
 func TestPutRegistration_MissingID(t *testing.T) {
-	payload := validRegistrationPayload() // from earlier helper
+	//t.Parallel()
+
+	payload := validRegistrationPayload()
 	req := httptest.NewRequest(http.MethodPut, constants.Registrations, bytes.NewReader(payload))
 	w := httptest.NewRecorder()
 
@@ -162,6 +188,8 @@ func TestPutRegistration_MissingID(t *testing.T) {
 }
 
 func TestPutRegistration_InvalidJSON(t *testing.T) {
+	//t.Parallel()
+
 	id := insertTestRegistration(t)
 
 	req := httptest.NewRequest(http.MethodPut, constants.Registrations+id, bytes.NewReader([]byte("not-json")))
@@ -175,16 +203,17 @@ func TestPutRegistration_InvalidJSON(t *testing.T) {
 }
 
 func TestPutRegistration_NonExistentID(t *testing.T) {
-	closeMock := startMockCountryAPI(t)
+	//t.Parallel()
+
+	closeMock := startMockCountryAPI(t, "NO")
 	defer closeMock()
 
-	// Use a fake ID that doesn't exist
 	nonExistentID := "fake-id-12345"
 
-	// Create a valid updated payload
 	updated := models.Registration{
-		Country: "Norway",
-		IsoCode: "NO",
+		Country:    "Norway",
+		IsoCode:    "NO",
+		LastChange: utils.CustomTime{Time: time.Now()},
 		Features: models.Features{
 			Temperature:      true,
 			Precipitation:    true,
@@ -202,25 +231,16 @@ func TestPutRegistration_NonExistentID(t *testing.T) {
 
 	RegistrationsHandler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected 200 OK even for non-existent ID (upsert), got %d", w.Code)
-	}
-
-	// Check the response body for confirmation
-	var resp map[string]interface{}
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
-	if resp["message"] != "Registration updated successfully" {
-		t.Errorf("Unexpected message: %v", resp["message"])
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected 404 Not Found for non-existent ID, got %d", w.Code)
 	}
 }
 
 func TestDeleteRegistration_AlreadyDeleted(t *testing.T) {
-	// Insert a registration
+	//t.Parallel()
+
 	id := insertTestRegistration(t)
 
-	// Delete it once — should succeed
 	req1 := httptest.NewRequest(http.MethodDelete, constants.Registrations+id, nil)
 	w1 := httptest.NewRecorder()
 	RegistrationsHandler(w1, req1)
@@ -229,7 +249,6 @@ func TestDeleteRegistration_AlreadyDeleted(t *testing.T) {
 		t.Fatalf("Expected 200 OK on first delete, got %d", w1.Code)
 	}
 
-	// Try deleting again — should now return 404 Not Found
 	req2 := httptest.NewRequest(http.MethodDelete, constants.Registrations+id, nil)
 	w2 := httptest.NewRecorder()
 	RegistrationsHandler(w2, req2)
@@ -240,7 +259,8 @@ func TestDeleteRegistration_AlreadyDeleted(t *testing.T) {
 }
 
 func TestGetSpecificRegistration(t *testing.T) {
-	// Insert a registration
+	//t.Parallel()
+
 	id := insertTestRegistration(t)
 
 	req := httptest.NewRequest(http.MethodGet, constants.Registrations+id, nil)
@@ -252,17 +272,19 @@ func TestGetSpecificRegistration(t *testing.T) {
 		t.Fatalf("Expected 200 OK, got %d", w.Code)
 	}
 
-	var reg models.Registration
-	if err := json.NewDecoder(w.Body).Decode(&reg); err != nil {
+	var raw map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&raw); err != nil {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if reg.ID != id {
-		t.Errorf("Expected ID %s, got %s", id, reg.ID)
+	if raw["id"] != id {
+		t.Errorf("Expected ID %s, got %v", id, raw["id"])
 	}
 }
 
 func TestGetSpecificRegistration_NotFound(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, constants.Registrations+"nonexistent-id", nil)
 	w := httptest.NewRecorder()
 

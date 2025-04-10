@@ -357,6 +357,7 @@ func validateRegistration(registration models.Registration) error {
 func validateISOCode(country string, isoCode string) error {
 	// Build the request URL and perform the HTTP GET request
 	apiURL := fmt.Sprintf(constants.RestCountriesAPI+"/name/%s", country)
+	fmt.Println("VALIDATING AGAINST:", apiURL) // DEBUG LINE
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		return fmt.Errorf("%s: %v", errorMessages.APIFailed, err)
