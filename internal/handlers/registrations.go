@@ -242,6 +242,12 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Validate the input (country + ISO code)
+		if err := ValidateRegistration(registration); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		// Update the Firestore document with the registration data.
 		docR := firestore.Client.Collection("registrations").Doc(id)
 		registration.LastChange = utils.CustomTime{Time: time.Now()}
@@ -252,7 +258,7 @@ func putRegistration(w http.ResponseWriter, r *http.Request) {
 		}
 		// Trigger webhook for the CHANGE event.
 		// The event type is "CHANGE" and we pass the updated ISO code.
-		services.TriggerWebhookEvent("CHANGE", registration.IsoCode)
+		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
 
 		// Trigger webhook
 		services.TriggerWebhookEvent(constants.EventChange, registration.IsoCode)
@@ -290,6 +296,7 @@ func ValidateRegistration(registration models.Registration) error {
 func ValidateISOCode(country string, isoCode string) error {
 	// Build the request URL and perform the HTTP GET request
 	apiURL := fmt.Sprintf(constants.RestCountriesAPI+"/name/%s", country)
+	fmt.Println("VALIDATING AGAINST:", apiURL) // DEBUG LINE
 	resp, err := http.Get(apiURL)
 	if err != nil {
 		return fmt.Errorf("failed to validate country with external API: %v", err)
